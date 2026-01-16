@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { RiderData, AppSettings, PhotoFile, SocialEntry } from './types';
 import { generateRiderBio } from './geminiService';
@@ -43,7 +42,7 @@ const App: React.FC = () => {
     if (isSubmitting || isSuccess) return;
     
     if (!formData.name || !formData.location || !formData.gear || !formData.season) {
-        tg?.showAlert("Для вступления в клуб нужно заполнить все поля со звездочкой (*)");
+        tg?.showAlert("Для вступления в клуб нужно заполнит все поля со звездочкой (*)");
         return;
     }
 
@@ -171,7 +170,7 @@ const App: React.FC = () => {
           </div>
           
           <h2 className="text-2xl font-black text-white uppercase italic leading-tight mb-2">Доступ разрешен</h2>
-          <p className="text-[10px] text-neutral-500 uppercase tracking-[0.2em] mb-8">Zel Riders Verification Passed</p>
+          <p className="text-[10px] text-neutral-500 uppercase tracking-[0.2em] mb-8">ZEL RIDERS Verification Passed</p>
           
           <div className="space-y-4">
             <a 
@@ -193,35 +192,25 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen p-4 flex flex-col items-center justify-start relative bg-[#0a0a0a] pb-24">
-      {/* Dynamic backgrounds matching logo colors */}
+      {/* Background blobs */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] right-[-10%] w-[60%] h-[60%] bg-red-600/10 blur-[120px] rounded-full"></div>
         <div className="absolute bottom-[-10%] left-[-10%] w-[60%] h-[60%] bg-green-600/10 blur-[120px] rounded-full"></div>
       </div>
 
-      <header className="w-full max-w-lg mb-8 flex flex-col items-center pt-8 z-10">
-        <div className="relative mb-6">
-          <div className="absolute inset-0 bg-white/5 rounded-full blur-2xl animate-pulse"></div>
-          <img 
-            src="./logo.png" 
-            alt="Zel Riders" 
-            className="w-36 h-36 object-contain drop-shadow-[0_0_20px_rgba(255,255,255,0.15)] relative animate-in fade-in zoom-in duration-700" 
-          />
-        </div>
-        <h1 className="text-white text-2xl font-black uppercase italic tracking-tighter">
-          Zel Riders <span className="text-red-600">Gate</span>
+      <header className="w-full max-w-lg mb-8 flex flex-col items-center pt-8 z-20">
+        <h1 className="text-3xl font-black uppercase italic tracking-tighter">
+          <span className="text-red-600">Z</span><span className="text-white">EL</span>
+          <span className="inline-block w-2"></span>
+          <span className="text-green-600">R</span><span className="text-white">IDERS</span>
         </h1>
-        <div className="flex gap-1 mt-2">
-            <div className="h-1 w-6 bg-red-600 rounded-full"></div>
-            <div className="h-1 w-3 bg-white rounded-full"></div>
-            <div className="h-1 w-6 bg-green-600 rounded-full"></div>
-        </div>
-        <p className="text-neutral-500 text-[9px] font-black uppercase tracking-[0.4em] mt-6 opacity-60 text-center px-4">
-          Заполни форму для доступа к закрытым темам чата
+        
+        <p className="text-neutral-500 text-[10px] font-black uppercase tracking-[0.2em] mt-4 opacity-80 text-center px-4">
+          Заявка на вступление в чат
         </p>
       </header>
 
-      <main className="w-full max-w-lg bg-[#111]/80 backdrop-blur-xl border border-neutral-900 rounded-[2.5rem] p-6 md:p-8 shadow-2xl z-10">
+      <main className="w-full max-w-lg bg-[#111]/80 backdrop-blur-2xl border border-neutral-900 rounded-[2.5rem] p-6 md:p-8 shadow-2xl z-10">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
           <div className="space-y-2">
             <label className="text-[10px] font-black text-neutral-500 uppercase ml-1">Имя / Ник *</label>
@@ -299,7 +288,7 @@ const App: React.FC = () => {
       </main>
 
       <footer className="mt-12 text-neutral-800 text-[10px] font-black uppercase tracking-[0.6em] text-center max-w-xs leading-relaxed">
-        Zel Riders Community Verification Protocol
+        ZEL RIDERS Community Verification Protocol
       </footer>
     </div>
   );
