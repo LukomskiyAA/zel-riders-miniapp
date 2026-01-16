@@ -1,16 +1,20 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { RiderData, AppSettings, PhotoFile, SocialEntry } from './types';
-import { generateRiderBio } from './geminiService';
-import { sendToTelegram } from './telegramService';
+import { generateRiderBio } from './services/geminiService';
+import { sendToTelegram } from './services/telegramService';
 
 // =========================================================
-// ✅ КОНФИГУРАЦИЯ TELEGRAM
+// ✅ КОНФИГУРАЦИЯ ЗАКРЫТОГО КЛУБА
 // =========================================================
-const TELEGRAM_CONFIG: AppSettings = {
+const CLUB_CONFIG: AppSettings & { chatInviteLink: string } = {
   botToken: '8394525518:AAF5RD0yvNLZQjiTS3wN61cC3K2HbNwJtxg', 
   chatId: '-1003610896779',      
-  threadId: ''                
+  // ИНСТРУКЦИЯ ПО threadId:
+  // 1. Правой кнопкой на любое сообщение в нужной ветке -> "Копировать ссылку"
+  // 2. В ссылке https://t.me/c/ID_ЧАТА/ID_ТЕМЫ/ID_СООБЩЕНИЯ число посередине - это ID_ТЕМЫ.
+  threadId: '10', 
+  chatInviteLink: 'https://t.me/+52X67-4oxYJmM2E6' 
 };
 
 declare global {
@@ -33,51 +37,43 @@ const App: React.FC = () => {
 
   const [photos, setPhotos] = useState<PhotoFile[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error' | null, message: string }>({ type: null, message: '' });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Функция отправки данных (вынесена для использования в MainButton)
   const performSubmit = useCallback(async () => {
-    if (isSubmitting) return;
+    if (isSubmitting || isSuccess) return;
     
     if (!formData.name || !formData.location || !formData.gear || !formData.season) {
-        tg?.showAlert("Пожалуйста, заполните все обязательные поля со звездочкой (*)");
+        tg?.showAlert("Для вступления в клуб нужно заполнить все поля со звездочкой (*)");
         return;
     }
 
     if (photos.length === 0) {
-      setStatus({ type: 'error', message: 'Нужно хотя бы одно фото 📸' });
-      tg?.showAlert("Добавьте хотя бы одну фотографию!");
+      tg?.showAlert("Загрузи хотя бы одно фото своего байка или себя!");
       return;
     }
 
     setIsSubmitting(true);
-    setStatus({ type: null, message: '' });
     tg?.MainButton?.showProgress();
 
     try {
       const aiBio = await generateRiderBio(formData);
       
       const result = await sendToTelegram(
-        TELEGRAM_CONFIG, 
+        CLUB_CONFIG, 
         formData, 
         aiBio, 
         photos.map(p => p.file)
       );
 
       if (result.ok || (Array.isArray(result) && result[0]?.ok)) {
-        setStatus({ type: 'success', message: 'Отправлено! 🏁' });
+        setIsSuccess(true);
         tg?.HapticFeedback?.notificationOccurred('success');
-        tg?.MainButton?.hideProgress();
-        tg?.MainButton?.setParams({ text: 'ГОТОВО!', color: '#22c55e' });
-        
-        setPhotos([]);
-        setTimeout(() => {
-           if (tg) tg.close();
-        }, 1500);
+        tg?.MainButton?.hide();
       } else {
-        throw new Error(result.description || 'Ошибка API Telegram');
+        throw new Error(result.description || 'Ошибка при верификации');
       }
     } catch (error: any) {
       setStatus({ type: 'error', message: `Ошибка: ${error.message}` });
@@ -86,12 +82,11 @@ const App: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [formData, photos, isSubmitting, tg]);
+  }, [formData, photos, isSubmitting, isSuccess, tg]);
 
-  // Настройка MainButton при изменении состояния
   useEffect(() => {
-    if (tg) {
-      tg.MainButton.setText('ОТПРАВИТЬ АНКЕТУ');
+    if (tg && !isSuccess) {
+      tg.MainButton.setText('ПОЛУЧИТЬ ДОСТУП');
       tg.MainButton.setParams({
         is_visible: true,
         is_active: !isSubmitting && formData.name.length > 0,
@@ -102,12 +97,14 @@ const App: React.FC = () => {
       tg.MainButton.onClick(performSubmit);
       return () => tg.MainButton.offClick(performSubmit);
     }
-  }, [tg, performSubmit, formData.name, isSubmitting]);
+  }, [tg, performSubmit, formData.name, isSubmitting, isSuccess]);
 
   useEffect(() => {
     if (tg) {
       tg.ready();
       tg.expand();
+      tg.setHeaderColor('#0a0a0a');
+      tg.setBackgroundColor('#0a0a0a');
       
       const user = tg.initDataUnsafe?.user;
       if (user) {
@@ -123,14 +120,10 @@ const App: React.FC = () => {
           )
         }));
       }
-
-      if (tg.themeParams?.bg_color) {
-        document.body.style.backgroundColor = tg.themeParams.bg_color;
-      }
     }
   }, [tg]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
@@ -149,212 +142,146 @@ const App: React.FC = () => {
   };
 
   const removeSocialEntry = (index: number) => {
-    if (formData.socials.length <= 1) {
-      handleSocialChange(0, 'handle', '');
-      return;
-    }
-    const newSocials = formData.socials.filter((_, i) => i !== index);
-    setFormData(prev => ({ ...prev, socials: newSocials }));
+    if (formData.socials.length <= 1) return;
+    setFormData(prev => ({ ...prev, socials: prev.socials.filter((_, i) => i !== index) }));
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []) as File[];
     if (photos.length + files.length > 3) {
-      tg?.showAlert("Максимум 3 фотографии");
+      tg?.showAlert("Максимум 3 фото");
       return;
     }
-
-    const newPhotos: PhotoFile[] = files.map((file: File) => ({
-      file,
-      preview: URL.createObjectURL(file)
-    }));
-
+    const newPhotos = files.map(file => ({ file, preview: URL.createObjectURL(file) }));
     setPhotos(prev => [...prev, ...newPhotos]);
-    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const removePhoto = (index: number) => {
     setPhotos(prev => {
-      const updated = [...prev];
-      URL.revokeObjectURL(updated[index].preview);
-      updated.splice(index, 1);
-      return updated;
+      URL.revokeObjectURL(prev[index].preview);
+      return prev.filter((_, i) => i !== index);
     });
   };
 
-  return (
-    <div className="min-h-screen p-4 md:p-8 flex flex-col items-center justify-start relative overflow-x-hidden pb-24">
-      {/* Background decoration */}
-      <div className="absolute top-[-5%] left-[-10%] w-[60%] h-[40%] bg-green-900/10 blur-[100px] rounded-full pointer-events-none"></div>
-      <div className="absolute bottom-[-5%] right-[-10%] w-[60%] h-[40%] bg-red-900/10 blur-[100px] rounded-full pointer-events-none"></div>
-
-      {/* Header */}
-      <div className="w-full max-w-lg mb-6 flex flex-col items-center relative z-10 pt-4">
-        <div className="relative group mb-2">
-          <div className="absolute -inset-4 bg-gradient-to-r from-red-600/10 to-green-600/10 rounded-full blur-xl opacity-50 group-hover:opacity-100 transition duration-1000"></div>
-          <img 
-            src="./logo.png" 
-            alt="Zel Riders Logo" 
-            className="relative w-32 h-32 md:w-48 md:h-48 object-contain drop-shadow-2xl"
-            onError={(e) => {
-              e.currentTarget.style.display = 'none';
-              const textHeader = document.getElementById('text-header-fallback');
-              if (textHeader) textHeader.style.display = 'block';
-            }}
-          />
-        </div>
-        <div id="text-header-fallback" style={{ display: 'none' }} className="text-center">
-           <h1 className="text-4xl font-black italic tracking-tighter text-white uppercase mb-2">
-            <span className="text-red-600">Z</span>el <span className="text-green-500">R</span>iders
-          </h1>
-        </div>
-      </div>
-
-      {/* Main Form */}
-      <div className="w-full max-w-lg bg-[#181818]/80 backdrop-blur-md border border-neutral-800 rounded-[2rem] p-6 md:p-8 shadow-2xl relative z-10 mb-10">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <div className="space-y-1.5">
-            <label className="block text-[10px] font-black uppercase text-neutral-400 ml-1 tracking-wider">Имя *</label>
-            <input 
-              required
-              name="name"
-              value={formData.name}
-              onChange={handleInputChange}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-3.5 text-white focus:border-neutral-500 outline-none"
-              placeholder="Username"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="block text-[10px] font-black uppercase text-neutral-400 ml-1 tracking-wider">Возраст</label>
-            <input 
-              name="age"
-              type="number"
-              value={formData.age}
-              onChange={handleInputChange}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-3.5 text-white focus:border-neutral-500 outline-none"
-              placeholder="25"
-            />
-          </div>
-          <div className="md:col-span-2 space-y-1.5">
-            <label className="block text-[10px] font-black uppercase text-neutral-400 ml-1 tracking-wider">Локация *</label>
-            <input 
-              required
-              name="location"
-              value={formData.location}
-              onChange={handleInputChange}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-3.5 text-white focus:border-neutral-500 outline-none"
-              placeholder="Город / Район"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="block text-[10px] font-black uppercase text-neutral-400 ml-1 tracking-wider">Байк *</label>
-            <input 
-              required
-              name="gear"
-              value={formData.gear}
-              onChange={handleInputChange}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-3.5 text-white focus:border-neutral-500 outline-none"
-              placeholder="Модель"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label className="block text-[10px] font-black uppercase text-neutral-400 ml-1 tracking-wider">Стаж *</label>
-            <input 
-              required
-              name="season"
-              value={formData.season}
-              onChange={handleInputChange}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-3.5 text-white focus:border-neutral-500 outline-none"
-              placeholder="Сезонов"
-            />
+  if (isSuccess) {
+    return (
+      <div className="min-h-screen p-6 flex flex-col items-center justify-center text-center bg-[#0a0a0a]">
+        <div className="w-full max-w-xs p-8 bg-[#181818] rounded-[2.5rem] border-2 border-green-500 shadow-[0_0_50px_rgba(34,197,94,0.2)] animate-in zoom-in duration-500 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-green-500 to-transparent animate-pulse"></div>
+          
+          <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+            <i className="fas fa-check text-4xl text-green-500"></i>
           </div>
           
-          <div className="md:col-span-2 space-y-3 p-4 bg-neutral-900/40 rounded-2xl border border-neutral-800">
-            <label className="block text-[10px] font-black uppercase text-neutral-400 ml-1 tracking-wider">Социальные сети</label>
-            <div className="space-y-2">
-              {formData.socials.map((social, index) => (
-                <div key={index} className="flex gap-2">
-                  <select 
-                    value={social.platform}
-                    onChange={(e) => handleSocialChange(index, 'platform', e.target.value)}
-                    className="bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-2.5 text-white text-xs font-bold"
-                  >
-                    <option value="Telegram">Telegram</option>
-                    <option value="Instagram">Instagram</option>
-                    <option value="VK">VK</option>
-                  </select>
-                  <input 
-                    value={social.handle}
-                    onChange={(e) => handleSocialChange(index, 'handle', e.target.value)}
-                    className="flex-grow bg-neutral-900/50 border border-neutral-700 rounded-lg px-4 py-2.5 text-white outline-none text-sm"
-                    placeholder="@handle"
-                  />
-                  {formData.socials.length > 1 && (
-                    <button type="button" onClick={() => removeSocialEntry(index)} className="text-red-500 px-2 transition-transform active:scale-90">
-                      <i className="fas fa-trash"></i>
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-            <button 
-              type="button" 
-              onClick={addSocialEntry}
-              className="text-[9px] font-black uppercase text-neutral-500 hover:text-white transition-colors"
+          <h2 className="text-2xl font-black text-white uppercase italic leading-tight mb-2">Доступ разрешен</h2>
+          <p className="text-[10px] text-neutral-500 uppercase tracking-[0.2em] mb-8">Zel Riders Verification Passed</p>
+          
+          <div className="space-y-4">
+            <a 
+              href={CLUB_CONFIG.chatInviteLink}
+              className="block w-full py-5 bg-white text-black font-black uppercase tracking-widest rounded-xl hover:scale-[1.02] active:scale-95 transition-all shadow-xl"
             >
-              + Добавить еще
-            </button>
+              Вступить в чат
+            </a>
+            <p className="text-[9px] text-neutral-600 font-medium">Твоя анкета уже в базе сообщества. Увидимся на дорогах!</p>
+          </div>
+        </div>
+        
+        <button onClick={() => tg?.close()} className="mt-12 text-neutral-700 text-[10px] font-black uppercase tracking-widest border-b border-neutral-900 pb-1">
+          Вернуться в Telegram
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen p-4 flex flex-col items-center justify-start relative bg-[#0a0a0a] pb-24">
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-red-600/5 blur-[120px] rounded-full"></div>
+        <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] bg-green-600/5 blur-[120px] rounded-full"></div>
+      </div>
+
+      <header className="w-full max-w-lg mb-8 flex flex-col items-center pt-8 z-10">
+        <img src="./logo.png" alt="Zel Riders" className="w-32 h-32 object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.1)] mb-4" />
+        <h1 className="text-white text-xl font-black uppercase italic tracking-tighter">Zel Riders <span className="text-red-600">Gate</span></h1>
+        <div className="h-0.5 w-12 bg-red-600 mt-2"></div>
+        <p className="text-neutral-500 text-[9px] font-black uppercase tracking-[0.4em] mt-4 opacity-50 text-center">Пройди верификацию для доступа в чат</p>
+      </header>
+
+      <main className="w-full max-w-lg bg-[#111] border border-neutral-900 rounded-[2.5rem] p-6 md:p-8 shadow-2xl z-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-neutral-500 uppercase ml-1">Имя в тусовке *</label>
+            <input name="name" value={formData.name} onChange={handleInputChange} className="w-full bg-black border border-neutral-800 rounded-2xl px-5 py-4 text-white focus:border-red-600 outline-none transition-all" placeholder="Nickname" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-neutral-500 uppercase ml-1">Возраст</label>
+            <input name="age" type="number" value={formData.age} onChange={handleInputChange} className="w-full bg-black border border-neutral-800 rounded-2xl px-5 py-4 text-white focus:border-red-600 outline-none transition-all" placeholder="25" />
+          </div>
+          <div className="md:col-span-2 space-y-2">
+            <label className="text-[10px] font-black text-neutral-500 uppercase ml-1">Откуда ты? *</label>
+            <input name="location" value={formData.location} onChange={handleInputChange} className="w-full bg-black border border-neutral-800 rounded-2xl px-5 py-4 text-white focus:border-red-600 outline-none transition-all" placeholder="Зеленоград / Москва" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-neutral-500 uppercase ml-1">Твой байк *</label>
+            <input name="gear" value={formData.gear} onChange={handleInputChange} className="w-full bg-black border border-neutral-800 rounded-2xl px-5 py-4 text-white focus:border-red-600 outline-none transition-all" placeholder="Модель" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-neutral-500 uppercase ml-1">Опыт (сезоны) *</label>
+            <input name="season" value={formData.season} onChange={handleInputChange} className="w-full bg-black border border-neutral-800 rounded-2xl px-5 py-4 text-white focus:border-red-600 outline-none transition-all" placeholder="3" />
+          </div>
+
+          <div className="md:col-span-2 p-5 bg-black rounded-3xl border border-neutral-900 space-y-4">
+             <label className="text-[10px] font-black text-neutral-500 uppercase block">Контакты</label>
+             {formData.socials.map((social, idx) => (
+               <div key={idx} className="flex gap-2">
+                 <select value={social.platform} onChange={(e) => handleSocialChange(idx, 'platform', e.target.value)} className="bg-neutral-900 border border-neutral-800 rounded-xl px-3 text-xs text-white">
+                   <option>Telegram</option>
+                   <option>Instagram</option>
+                 </select>
+                 <input value={social.handle} onChange={(e) => handleSocialChange(idx, 'handle', e.target.value)} className="flex-1 bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-sm text-white focus:border-red-600 outline-none" placeholder="@handle" />
+                 {formData.socials.length > 1 && (
+                   <button onClick={() => removeSocialEntry(idx)} className="text-neutral-700 hover:text-red-500 px-1"><i className="fas fa-times"></i></button>
+                 )}
+               </div>
+             ))}
+             <button onClick={addSocialEntry} className="text-[9px] font-black uppercase text-red-600 hover:text-white transition-all">+ Еще контакт</button>
           </div>
         </div>
 
-        <div className="mb-4">
-          <label className="block text-[10px] font-black uppercase text-neutral-400 mb-3 ml-1 tracking-widest">Фото (из галереи) *</label>
-          <div className="flex flex-wrap gap-3">
-            {photos.map((photo, idx) => (
-              <div key={idx} className="relative w-24 h-24 rounded-xl overflow-hidden bg-neutral-900 border border-neutral-800 shadow-lg">
-                <img src={photo.preview} className="w-full h-full object-cover" />
-                <button type="button" onClick={() => removePhoto(idx)} className="absolute top-0 right-0 bg-red-600 text-white w-6 h-6 flex items-center justify-center rounded-bl-xl shadow-md">
-                  <i className="fas fa-times text-[10px]"></i>
+        <div className="space-y-4">
+          <label className="text-[10px] font-black text-neutral-500 uppercase ml-1 block">Добавь фото (байк/ты) *</label>
+          <div className="flex flex-wrap gap-4">
+            {photos.map((p, idx) => (
+              <div key={idx} className="relative w-24 h-24 rounded-2xl overflow-hidden border border-neutral-800 group">
+                <img src={p.preview} className="w-full h-full object-cover" alt="Preview" />
+                <button onClick={() => removePhoto(idx)} className="absolute inset-0 bg-red-600/80 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <i className="fas fa-trash"></i>
                 </button>
               </div>
             ))}
             {photos.length < 3 && (
               <button 
-                type="button" 
                 onClick={() => fileInputRef.current?.click()}
-                className="w-24 h-24 rounded-xl border border-dashed border-neutral-700 flex flex-col items-center justify-center text-neutral-500 hover:text-neutral-300 hover:border-neutral-500 transition-all bg-neutral-900/30"
+                className="w-24 h-24 rounded-2xl border-2 border-dashed border-neutral-900 flex flex-col items-center justify-center text-neutral-700 hover:text-red-600 hover:border-red-600 transition-all"
               >
-                <i className="fas fa-images text-2xl mb-1"></i>
-                <span className="text-[8px] font-black uppercase">Gallery</span>
+                <i className="fas fa-camera text-xl mb-1"></i>
+                <span className="text-[8px] font-black">ADD</span>
               </button>
             )}
           </div>
-          <input type="file" multiple accept="image/*" className="hidden" ref={fileInputRef} onChange={handleFileChange} />
+          <input type="file" ref={fileInputRef} className="hidden" accept="image/*" multiple onChange={handleFileChange} />
         </div>
 
         {status.message && (
-          <div className={`mt-4 p-4 rounded-xl text-[10px] font-black uppercase text-center animate-pulse ${status.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+          <div className="mt-6 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 text-[10px] font-bold uppercase text-center">
             {status.message}
           </div>
         )}
+      </main>
 
-        {/* Запасная кнопка для ПК/Браузеров, где нет MainButton */}
-        {!tg && (
-           <button 
-           onClick={performSubmit}
-           disabled={isSubmitting}
-           style={{ background: 'linear-gradient(to right, #ef4444 0%, #ffffff 50%, #22c55e 100%)' }}
-           className="w-full mt-8 py-7 text-2xl text-black font-black uppercase tracking-widest rounded-[1.5rem] shadow-[0_10px_40px_rgba(0,0,0,0.4)] active:scale-[0.97] transition-all disabled:opacity-50 relative overflow-hidden group"
-         >
-           <span className="relative z-10">{isSubmitting ? 'Отправка...' : 'Отправить'}</span>
-         </button>
-        )}
-      </div>
-
-      <footer className="mb-10 text-neutral-600 text-[10px] uppercase font-black tracking-[0.4em] flex items-center gap-4">
-        <span className="w-8 h-[1px] bg-neutral-800"></span>
-        Zel Riders Community
-        <span className="w-8 h-[1px] bg-neutral-800"></span>
+      <footer className="mt-12 text-neutral-800 text-[10px] font-black uppercase tracking-[0.6em] text-center">
+        Secure Verification Protocol v2
       </footer>
     </div>
   );
