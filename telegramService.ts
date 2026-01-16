@@ -1,7 +1,6 @@
 
 import { RiderData, AppSettings } from './types';
 
-// Функция для безопасного отображения текста в HTML режиме Telegram
 const escapeHTML = (text: string): string => {
   return text
     .replace(/&/g, '&amp;')
@@ -17,19 +16,21 @@ export const sendToTelegram = async (
   const { botToken, chatId, threadId } = settings;
   const baseUrl = `https://api.telegram.org/bot${botToken}`;
 
-  // Формируем упоминание пользователя через HTML
-  const userMention = data.tgUserId 
-    ? `<a href="tg://user?id=${data.tgUserId}">${escapeHTML(data.name)}</a>`
-    : `<b>${escapeHTML(data.name)}</b>`;
+  // Формируем активную ссылку на профиль пользователя
+  let userMention = `<b>${escapeHTML(data.name)}</b>`;
+  if (data.tgUsername) {
+    userMention = `<a href="https://t.me/${data.tgUsername}">${escapeHTML(data.name)}</a>`;
+  } else if (data.tgUserId) {
+    userMention = `<a href="tg://user?id=${data.tgUserId}">${escapeHTML(data.name)}</a>`;
+  }
 
   const validSocials = data.socials.filter(s => s.handle.trim() !== '');
   const socialInfo = validSocials.length > 0
     ? validSocials.map(s => `<b>${escapeHTML(s.platform)}:</b> ${escapeHTML(s.handle)}`).join('\n🔗 ')
     : 'Не указано';
 
-  // Формируем подпись в формате HTML
+  // Финальный чистый формат без полосок и заголовков
   const caption = `
-━━━━━━━━━━━━━━━━━━
 👤 <b>Имя:</b> ${userMention}
 🎂 <b>Возраст:</b> ${escapeHTML(data.age || 'Секрет')}
 📍 <b>Локация:</b> ${escapeHTML(data.location)}
@@ -38,7 +39,6 @@ export const sendToTelegram = async (
 
 🔗 <b>Контакты:</b>
 ${socialInfo}
-━━━━━━━━━━━━━━━━━━
   `.trim();
 
   try {
@@ -60,7 +60,6 @@ ${socialInfo}
       });
       return await response.json();
     } else {
-      // Для MediaGroup подпись крепится к ПЕРВОМУ фото
       const media = photos.map((_, index) => ({
         type: 'photo',
         media: `attach://photo${index}`,

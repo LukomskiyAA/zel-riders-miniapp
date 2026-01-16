@@ -3,13 +3,10 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { RiderData, AppSettings, PhotoFile, SocialEntry } from './types';
 import { sendToTelegram } from './telegramService';
 
-// =========================================================
-// ✅ КОНФИГУРАЦИЯ ЗАКРЫТОГО КЛУБА
-// =========================================================
 const CLUB_CONFIG: AppSettings & { chatInviteLink: string } = {
   botToken: '8394525518:AAF5RD0yvNLZQjiTS3wN61cC3K2HbNwJtxg', 
   chatId: '-1003610896779',      
-  threadId: '2', // ID темы "Анкеты"
+  threadId: '2', 
   chatInviteLink: 'https://t.me/+52X67-4oxYJmM2E6' 
 };
 
@@ -42,12 +39,12 @@ const App: React.FC = () => {
     if (isSubmitting || isSuccess) return;
     
     if (!formData.name || !formData.location || !formData.gear || !formData.season) {
-        tg?.showAlert("Для вступления в клуб нужно заполнит все поля со звездочкой (*)");
+        tg?.showAlert("Для вступления заполни все обязательные поля (*)");
         return;
     }
 
     if (photos.length === 0) {
-      tg?.showAlert("Загрузи хотя бы одно фото своего байка или себя!");
+      tg?.showAlert("Добавь хотя бы одно фото!");
       return;
     }
 
@@ -66,7 +63,7 @@ const App: React.FC = () => {
         tg?.HapticFeedback?.notificationOccurred('success');
         tg?.MainButton?.hide();
       } else {
-        throw new Error(result.description || 'Ошибка при отправке');
+        throw new Error(result.description || 'Ошибка API');
       }
     } catch (error: any) {
       setStatus({ type: 'error', message: `Ошибка: ${error.message}` });
@@ -86,7 +83,6 @@ const App: React.FC = () => {
         color: '#ef4444',
         text_color: '#ffffff'
       });
-
       tg.MainButton.onClick(performSubmit);
       return () => tg.MainButton.offClick(performSubmit);
     }
@@ -161,25 +157,18 @@ const App: React.FC = () => {
       <div className="min-h-screen p-6 flex flex-col items-center justify-center text-center bg-[#0a0a0a]">
         <div className="w-full max-w-xs p-8 bg-[#181818] rounded-[2.5rem] border-2 border-green-500 shadow-[0_0_50px_rgba(34,197,94,0.2)] animate-in zoom-in duration-500 relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-green-500 to-transparent animate-pulse"></div>
-          
           <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
             <i className="fas fa-check text-4xl text-green-500"></i>
           </div>
-          
-          <h2 className="text-2xl font-black text-white uppercase italic leading-tight mb-2">Доступ разрешен</h2>
+          <h2 className="text-2xl font-black text-white uppercase italic leading-tight mb-2">Анкета принята</h2>
           <p className="text-[10px] text-neutral-500 uppercase tracking-[0.2em] mb-8">ZEL RIDERS Verification Passed</p>
-          
           <div className="space-y-4">
-            <a 
-              href={CLUB_CONFIG.chatInviteLink}
-              className="block w-full py-5 bg-white text-black font-black uppercase tracking-widest rounded-xl hover:scale-[1.02] active:scale-95 transition-all shadow-xl"
-            >
+            <a href={CLUB_CONFIG.chatInviteLink} className="block w-full py-5 bg-white text-black font-black uppercase tracking-widest rounded-xl hover:scale-[1.02] active:scale-95 transition-all shadow-xl">
               Вступить в чат
             </a>
             <p className="text-[9px] text-neutral-600 font-medium italic">Анкетка уже в топике. Газуем!</p>
           </div>
         </div>
-        
         <button onClick={() => tg?.close()} className="mt-12 text-neutral-700 text-[10px] font-black uppercase tracking-widest border-b border-neutral-900 pb-1">
           Закрыть
         </button>
@@ -189,20 +178,13 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen p-4 flex flex-col items-center justify-start relative bg-[#0a0a0a] pb-24">
-      {/* Background blobs */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] right-[-10%] w-[60%] h-[60%] bg-red-600/10 blur-[120px] rounded-full"></div>
-        <div className="absolute bottom-[-10%] left-[-10%] w-[60%] h-[60%] bg-green-600/10 blur-[120px] rounded-full"></div>
-      </div>
-
       <header className="w-full max-w-lg mb-8 flex flex-col items-center pt-8 z-20">
-        <h1 className="text-3xl font-black uppercase italic tracking-tighter">
+        <h1 className="text-4xl font-black uppercase italic tracking-tighter">
           <span className="text-red-600">Z</span><span className="text-white">EL</span>
-          <span className="inline-block w-2"></span>
+          <span className="inline-block w-3"></span>
           <span className="text-green-600">R</span><span className="text-white">IDERS</span>
         </h1>
-        
-        <p className="text-neutral-500 text-[10px] font-black uppercase tracking-[0.2em] mt-4 opacity-80 text-center px-4">
+        <p className="text-neutral-500 text-[11px] font-black uppercase tracking-[0.25em] mt-4 opacity-90 text-center px-4">
           Заявка на вступление в чат
         </p>
       </header>
@@ -231,9 +213,9 @@ const App: React.FC = () => {
           </div>
 
           <div className="md:col-span-2 p-5 bg-black rounded-3xl border border-neutral-900 space-y-4">
-             <label className="text-[10px] font-black text-neutral-500 uppercase block">Другие соцсети (опционально)</label>
+             <label className="text-[10px] font-black text-neutral-500 uppercase block">Контакты (соцсети)</label>
              {formData.socials.map((social, idx) => (
-               <div key={idx} className="flex gap-2 animate-in slide-in-from-left-2 duration-300">
+               <div key={idx} className="flex gap-2">
                  <select value={social.platform} onChange={(e) => handleSocialChange(idx, 'platform', e.target.value)} className="bg-neutral-900 border border-neutral-800 rounded-xl px-3 text-xs text-white">
                    <option>Telegram</option>
                    <option>Instagram</option>
@@ -248,44 +230,38 @@ const App: React.FC = () => {
                </div>
              ))}
              <button onClick={addSocialEntry} className="text-[9px] font-black uppercase text-red-600 hover:text-white transition-all flex items-center gap-2">
-               <span className="text-lg">+</span> Еще контакт
+               <span className="text-lg">+</span> Добавить контакт
              </button>
           </div>
         </div>
 
         <div className="space-y-4">
-          <label className="text-[10px] font-black text-neutral-500 uppercase ml-1 block">Фото байка или в экипе * (до 3 шт)</label>
+          <label className="text-[10px] font-black text-neutral-500 uppercase ml-1 block">Фото (до 3 шт) *</label>
           <div className="flex flex-wrap gap-4">
             {photos.map((p, idx) => (
-              <div key={idx} className="relative w-24 h-24 rounded-2xl overflow-hidden border border-neutral-800 group shadow-lg">
+              <div key={idx} className="relative w-24 h-24 rounded-2xl overflow-hidden border border-neutral-800 shadow-lg">
                 <img src={p.preview} className="w-full h-full object-cover" alt="Preview" />
-                <button onClick={() => removePhoto(idx)} className="absolute inset-0 bg-red-600/80 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <i className="fas fa-trash"></i>
+                <button onClick={() => removePhoto(idx)} className="absolute top-1 right-1 bg-red-600 w-6 h-6 rounded-full text-white text-[10px] flex items-center justify-center">
+                  <i className="fas fa-times"></i>
                 </button>
               </div>
             ))}
             {photos.length < 3 && (
               <button 
                 onClick={() => fileInputRef.current?.click()}
-                className="w-24 h-24 rounded-2xl border-2 border-dashed border-neutral-900 flex flex-col items-center justify-center text-neutral-700 hover:text-green-600 hover:border-green-600 transition-all bg-black/40 hover:bg-green-600/5"
+                className="w-24 h-24 rounded-2xl border-2 border-dashed border-neutral-900 flex flex-col items-center justify-center text-neutral-700 hover:text-green-600 hover:border-green-600 transition-all bg-black/40"
               >
                 <i className="fas fa-camera text-xl mb-1"></i>
-                <span className="text-[8px] font-black">ЗАГРУЗИТЬ</span>
+                <span className="text-[8px] font-black uppercase tracking-tighter">Загрузить</span>
               </button>
             )}
           </div>
           <input type="file" ref={fileInputRef} className="hidden" accept="image/*" multiple onChange={handleFileChange} />
         </div>
-
-        {status.message && (
-          <div className="mt-6 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 text-[10px] font-bold uppercase text-center animate-bounce">
-            {status.message}
-          </div>
-        )}
       </main>
 
       <footer className="mt-12 text-neutral-800 text-[10px] font-black uppercase tracking-[0.6em] text-center max-w-xs leading-relaxed">
-        ZEL RIDERS Community Verification Protocol
+        ZEL RIDERS Community
       </footer>
     </div>
   );
