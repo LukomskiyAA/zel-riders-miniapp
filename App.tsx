@@ -8,8 +8,8 @@ import { sendToTelegram } from './telegramService';
 // КОНФИГУРАЦИЯ ТЕЛЕГРАМ (ЗАПОЛНИТЕ ОДИН РАЗ)
 // ==========================================
 const TELEGRAM_CONFIG: AppSettings = {
-  botToken: '8394525518:AAF5RD0yvNLZQjiTS3wN61cC3K2HbNwJtxg', // Вставьте сюда токен от @BotFather
-  chatId: '-1003610896779',      // Вставьте сюда ID чата (начинается с -100)
+  botToken: 'ВАШ_ТОКЕН_БОТА', // Вставьте сюда токен от @BotFather
+  chatId: 'ВАШ_CHAT_ID',      // Вставьте сюда ID чата (начинается с -100)
   threadId: ''                // ID темы (если есть), иначе оставьте пустым
 };
 

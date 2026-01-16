@@ -1,6 +1,14 @@
 
 import { RiderData, AppSettings } from './types';
 
+// Функция для безопасного отображения текста в HTML режиме Telegram
+const escapeHTML = (text: string): string => {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+};
+
 export const sendToTelegram = async (
   settings: AppSettings,
   data: RiderData,
@@ -10,29 +18,31 @@ export const sendToTelegram = async (
   const { botToken, chatId, threadId } = settings;
   const baseUrl = `https://api.telegram.org/bot${botToken}`;
 
+  // Формируем упоминание пользователя
   const userMention = data.tgUserId 
-    ? `[${data.name}](tg://user?id=${data.tgUserId})`
-    : `*${data.name}*`;
+    ? `<a href="tg://user?id=${data.tgUserId}">${escapeHTML(data.name)}</a>`
+    : `<b>${escapeHTML(data.name)}</b>`;
 
   const validSocials = data.socials.filter(s => s.handle.trim() !== '');
   const socialInfo = validSocials.length > 0
-    ? validSocials.map(s => `${s.platform}: ${s.handle}`).join('\n🔗 ')
+    ? validSocials.map(s => `${escapeHTML(s.platform)}: ${escapeHTML(s.handle)}`).join('\n🔗 ')
     : 'Не указано';
 
+  // Формируем подпись в формате HTML
   const caption = `
-🏁 *Новая анкета участника!*
+🏁 <b>Новая анкета участника!</b>
 ━━━━━━━━━━━━━━━━━━
-👤 *Райдер:* ${userMention}
-🎂 *Возраст:* ${data.age || 'Секрет'}
-📍 *Локация:* ${data.location}
-🏍 *Техника:* ${data.gear}
-⏱ *Стаж:* ${data.season} сезон(ов)
+👤 <b>Райдер:</b> ${userMention}
+🎂 <b>Возраст:</b> ${escapeHTML(data.age || 'Секрет')}
+📍 <b>Локация:</b> ${escapeHTML(data.location)}
+🏍 <b>Техника:</b> ${escapeHTML(data.gear)}
+⏱ <b>Стаж:</b> ${escapeHTML(data.season)} сезон(ов)
 
-🔗 *Контакты:*
+🔗 <b>Контакты:</b>
 ${socialInfo}
 
-📝 *О себе (AI):*
-_${aiBio}_
+📝 <b>О себе (AI):</b>
+<i>${escapeHTML(aiBio)}</i>
 ━━━━━━━━━━━━━━━━━━
 #анкета #zelriders
   `.trim();
@@ -50,16 +60,18 @@ _${aiBio}_
           chat_id: chatId,
           message_thread_id: threadId,
           text: caption,
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
+          disable_web_page_preview: true
         }),
       });
       return await response.json();
     } else {
+      // Для группы медиа подпись прикрепляется к ПЕРВОМУ элементу
       const media = photos.map((_, index) => ({
         type: 'photo',
         media: `attach://photo${index}`,
         caption: index === 0 ? caption : undefined,
-        parse_mode: 'Markdown',
+        parse_mode: 'HTML',
       }));
 
       formData.append('media', JSON.stringify(media));
