@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { RiderData, AppSettings, PhotoFile, SocialEntry } from './types';
 import { generateRiderBio } from './geminiService';
 import { sendToTelegram } from './telegramService';
@@ -36,6 +36,73 @@ const App: React.FC = () => {
   const [status, setStatus] = useState<{ type: 'success' | 'error' | null, message: string }>({ type: null, message: '' });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Функция отправки данных (вынесена для использования в MainButton)
+  const performSubmit = useCallback(async () => {
+    if (isSubmitting) return;
+    
+    if (!formData.name || !formData.location || !formData.gear || !formData.season) {
+        tg?.showAlert("Пожалуйста, заполните все обязательные поля со звездочкой (*)");
+        return;
+    }
+
+    if (photos.length === 0) {
+      setStatus({ type: 'error', message: 'Нужно хотя бы одно фото 📸' });
+      tg?.showAlert("Добавьте хотя бы одну фотографию!");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setStatus({ type: null, message: '' });
+    tg?.MainButton?.showProgress();
+
+    try {
+      const aiBio = await generateRiderBio(formData);
+      
+      const result = await sendToTelegram(
+        TELEGRAM_CONFIG, 
+        formData, 
+        aiBio, 
+        photos.map(p => p.file)
+      );
+
+      if (result.ok || (Array.isArray(result) && result[0]?.ok)) {
+        setStatus({ type: 'success', message: 'Отправлено! 🏁' });
+        tg?.HapticFeedback?.notificationOccurred('success');
+        tg?.MainButton?.hideProgress();
+        tg?.MainButton?.setParams({ text: 'ГОТОВО!', color: '#22c55e' });
+        
+        setPhotos([]);
+        setTimeout(() => {
+           if (tg) tg.close();
+        }, 1500);
+      } else {
+        throw new Error(result.description || 'Ошибка API Telegram');
+      }
+    } catch (error: any) {
+      setStatus({ type: 'error', message: `Ошибка: ${error.message}` });
+      tg?.HapticFeedback?.notificationOccurred('error');
+      tg?.MainButton?.hideProgress();
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [formData, photos, isSubmitting, tg]);
+
+  // Настройка MainButton при изменении состояния
+  useEffect(() => {
+    if (tg) {
+      tg.MainButton.setText('ОТПРАВИТЬ АНКЕТУ');
+      tg.MainButton.setParams({
+        is_visible: true,
+        is_active: !isSubmitting && formData.name.length > 0,
+        color: '#ef4444',
+        text_color: '#ffffff'
+      });
+
+      tg.MainButton.onClick(performSubmit);
+      return () => tg.MainButton.offClick(performSubmit);
+    }
+  }, [tg, performSubmit, formData.name, isSubmitting]);
 
   useEffect(() => {
     if (tg) {
@@ -115,52 +182,8 @@ const App: React.FC = () => {
     });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!TELEGRAM_CONFIG.botToken || !TELEGRAM_CONFIG.chatId) {
-      setStatus({ type: 'error', message: 'Ошибка конфигурации 🛠️' });
-      return;
-    }
-
-    if (photos.length === 0) {
-      setStatus({ type: 'error', message: 'Нужно хотя бы одно фото 📸' });
-      return;
-    }
-
-    setIsSubmitting(true);
-    setStatus({ type: null, message: '' });
-
-    try {
-      const aiBio = await generateRiderBio(formData);
-      
-      const result = await sendToTelegram(
-        TELEGRAM_CONFIG, 
-        formData, 
-        aiBio, 
-        photos.map(p => p.file)
-      );
-
-      if (result.ok || (Array.isArray(result) && result[0]?.ok)) {
-        setStatus({ type: 'success', message: 'Отправлено! 🏁' });
-        tg?.HapticFeedback?.notificationOccurred('success');
-        setPhotos([]);
-        setTimeout(() => {
-           if (tg) tg.close();
-        }, 1500);
-      } else {
-        throw new Error(result.description || 'Ошибка API Telegram');
-      }
-    } catch (error: any) {
-      setStatus({ type: 'error', message: `Ошибка: ${error.message}` });
-      tg?.HapticFeedback?.notificationOccurred('error');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   return (
-    <div className="min-h-screen p-4 md:p-8 flex flex-col items-center justify-start relative overflow-x-hidden">
+    <div className="min-h-screen p-4 md:p-8 flex flex-col items-center justify-start relative overflow-x-hidden pb-24">
       {/* Background decoration */}
       <div className="absolute top-[-5%] left-[-10%] w-[60%] h-[40%] bg-green-900/10 blur-[100px] rounded-full pointer-events-none"></div>
       <div className="absolute bottom-[-5%] right-[-10%] w-[60%] h-[40%] bg-red-900/10 blur-[100px] rounded-full pointer-events-none"></div>
@@ -188,7 +211,7 @@ const App: React.FC = () => {
       </div>
 
       {/* Main Form */}
-      <form onSubmit={handleSubmit} className="w-full max-w-lg bg-[#181818]/80 backdrop-blur-md border border-neutral-800 rounded-[2rem] p-6 md:p-8 shadow-2xl relative z-10 mb-10">
+      <div className="w-full max-w-lg bg-[#181818]/80 backdrop-blur-md border border-neutral-800 rounded-[2rem] p-6 md:p-8 shadow-2xl relative z-10 mb-10">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <div className="space-y-1.5">
             <label className="block text-[10px] font-black uppercase text-neutral-400 ml-1 tracking-wider">Имя *</label>
@@ -284,7 +307,7 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        <div className="mb-8">
+        <div className="mb-4">
           <label className="block text-[10px] font-black uppercase text-neutral-400 mb-3 ml-1 tracking-widest">Фото (из галереи) *</label>
           <div className="flex flex-wrap gap-3">
             {photos.map((photo, idx) => (
@@ -310,20 +333,23 @@ const App: React.FC = () => {
         </div>
 
         {status.message && (
-          <div className={`mb-6 p-4 rounded-xl text-[10px] font-black uppercase text-center animate-pulse ${status.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+          <div className={`mt-4 p-4 rounded-xl text-[10px] font-black uppercase text-center animate-pulse ${status.type === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
             {status.message}
           </div>
         )}
 
-        <button 
-          disabled={isSubmitting}
-          style={{ background: 'linear-gradient(to right, #ef4444 0%, #ffffff 50%, #22c55e 100%)' }}
-          className="w-full py-7 text-2xl text-black font-black uppercase tracking-widest rounded-[1.5rem] shadow-[0_10px_40px_rgba(0,0,0,0.4)] active:scale-[0.97] transition-all disabled:opacity-50 relative overflow-hidden group"
-        >
-          <span className="relative z-10">{isSubmitting ? 'Отправка...' : 'Отправить в чат'}</span>
-          <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
-        </button>
-      </form>
+        {/* Запасная кнопка для ПК/Браузеров, где нет MainButton */}
+        {!tg && (
+           <button 
+           onClick={performSubmit}
+           disabled={isSubmitting}
+           style={{ background: 'linear-gradient(to right, #ef4444 0%, #ffffff 50%, #22c55e 100%)' }}
+           className="w-full mt-8 py-7 text-2xl text-black font-black uppercase tracking-widest rounded-[1.5rem] shadow-[0_10px_40px_rgba(0,0,0,0.4)] active:scale-[0.97] transition-all disabled:opacity-50 relative overflow-hidden group"
+         >
+           <span className="relative z-10">{isSubmitting ? 'Отправка...' : 'Отправить'}</span>
+         </button>
+        )}
+      </div>
 
       <footer className="mb-10 text-neutral-600 text-[10px] uppercase font-black tracking-[0.4em] flex items-center gap-4">
         <span className="w-8 h-[1px] bg-neutral-800"></span>
