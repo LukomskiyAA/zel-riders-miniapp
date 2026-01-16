@@ -12,7 +12,6 @@ const escapeHTML = (text: string): string => {
 export const sendToTelegram = async (
   settings: AppSettings,
   data: RiderData,
-  aiBio: string,
   photos: File[]
 ) => {
   const { botToken, chatId, threadId } = settings;
@@ -28,11 +27,10 @@ export const sendToTelegram = async (
     ? validSocials.map(s => `<b>${escapeHTML(s.platform)}:</b> ${escapeHTML(s.handle)}`).join('\n🔗 ')
     : 'Не указано';
 
-  // Формируем подпись в формате HTML (наиболее надежный способ)
+  // Формируем подпись в формате HTML
   const caption = `
-🏁 <b>Новая анкетка участника!</b>
 ━━━━━━━━━━━━━━━━━━
-👤 <b>Райдер:</b> ${userMention}
+👤 <b>Имя:</b> ${userMention}
 🎂 <b>Возраст:</b> ${escapeHTML(data.age || 'Секрет')}
 📍 <b>Локация:</b> ${escapeHTML(data.location)}
 🏍 <b>Техника:</b> ${escapeHTML(data.gear)}
@@ -40,11 +38,7 @@ export const sendToTelegram = async (
 
 🔗 <b>Контакты:</b>
 ${socialInfo}
-
-📝 <b>О себе (AI):</b>
-<i>${escapeHTML(aiBio)}</i>
 ━━━━━━━━━━━━━━━━━━
-#анкета #zelriders
   `.trim();
 
   try {

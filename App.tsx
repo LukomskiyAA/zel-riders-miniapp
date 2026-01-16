@@ -1,6 +1,6 @@
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { RiderData, AppSettings, PhotoFile, SocialEntry } from './types';
-import { generateRiderBio } from './geminiService';
 import { sendToTelegram } from './telegramService';
 
 // =========================================================
@@ -55,12 +55,9 @@ const App: React.FC = () => {
     tg?.MainButton?.showProgress();
 
     try {
-      const aiBio = await generateRiderBio(formData);
-      
       const result = await sendToTelegram(
         CLUB_CONFIG, 
         formData, 
-        aiBio, 
         photos.map(p => p.file)
       );
 
