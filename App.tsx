@@ -1,8 +1,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { RiderData, AppSettings, PhotoFile, SocialEntry } from './types';
-import { generateRiderBio } from './services/geminiService';
-import { sendToTelegram } from './services/telegramService';
+import { generateRiderBio } from './geminiService';
+import { sendToTelegram } from './telegramService';
 
 declare global {
   interface Window {
@@ -154,7 +154,7 @@ const App: React.FC = () => {
            if (tg) tg.close();
         }, 1500);
       } else {
-        throw new Error(result.description || 'Ошибка API. Проверьте настройки бота и чата.');
+        throw new Error(result.description || 'Ошибка API. Проверьте настройки бота.');
       }
     } catch (error: any) {
       setStatus({ type: 'error', message: `Ошибка: ${error.message}` });
