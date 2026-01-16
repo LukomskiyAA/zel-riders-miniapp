@@ -18,19 +18,19 @@ export const sendToTelegram = async (
   const { botToken, chatId, threadId } = settings;
   const baseUrl = `https://api.telegram.org/bot${botToken}`;
 
-  // Формируем упоминание пользователя
+  // Формируем упоминание пользователя через HTML
   const userMention = data.tgUserId 
     ? `<a href="tg://user?id=${data.tgUserId}">${escapeHTML(data.name)}</a>`
     : `<b>${escapeHTML(data.name)}</b>`;
 
   const validSocials = data.socials.filter(s => s.handle.trim() !== '');
   const socialInfo = validSocials.length > 0
-    ? validSocials.map(s => `${escapeHTML(s.platform)}: ${escapeHTML(s.handle)}`).join('\n🔗 ')
+    ? validSocials.map(s => `<b>${escapeHTML(s.platform)}:</b> ${escapeHTML(s.handle)}`).join('\n🔗 ')
     : 'Не указано';
 
-  // Формируем подпись в формате HTML
+  // Формируем подпись в формате HTML (наиболее надежный способ)
   const caption = `
-🏁 <b>Новая анкета участника!</b>
+🏁 <b>Новая анкетка участника!</b>
 ━━━━━━━━━━━━━━━━━━
 👤 <b>Райдер:</b> ${userMention}
 🎂 <b>Возраст:</b> ${escapeHTML(data.age || 'Секрет')}
@@ -66,7 +66,7 @@ ${socialInfo}
       });
       return await response.json();
     } else {
-      // Для группы медиа подпись прикрепляется к ПЕРВОМУ элементу
+      // Для MediaGroup подпись крепится к ПЕРВОМУ фото
       const media = photos.map((_, index) => ({
         type: 'photo',
         media: `attach://photo${index}`,

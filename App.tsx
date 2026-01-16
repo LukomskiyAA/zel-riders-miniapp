@@ -1,11 +1,11 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { RiderData, AppSettings, PhotoFile, SocialEntry } from './types';
-import { generateRiderBio } from './services/geminiService';
-import { sendToTelegram } from './services/telegramService';
+import { generateRiderBio } from './geminiService';
+import { sendToTelegram } from './telegramService';
 
 // =========================================================
-// ✅ КОНФИГУРАЦИЯ TELEGRAM (ОБНОВЛЕНО)
+// ✅ КОНФИГУРАЦИЯ TELEGRAM
 // =========================================================
 const TELEGRAM_CONFIG: AppSettings = {
   botToken: '8394525518:AAF5RD0yvNLZQjiTS3wN61cC3K2HbNwJtxg', 
@@ -118,8 +118,8 @@ const App: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!TELEGRAM_CONFIG.botToken || !TELEGRAM_CONFIG.chatId || TELEGRAM_CONFIG.botToken.includes('ВАШ_')) {
-      setStatus({ type: 'error', message: 'Ошибка конфигурации. Заполните Токен и ID чата! 🛠️' });
+    if (!TELEGRAM_CONFIG.botToken || !TELEGRAM_CONFIG.chatId) {
+      setStatus({ type: 'error', message: 'Ошибка конфигурации 🛠️' });
       return;
     }
 
