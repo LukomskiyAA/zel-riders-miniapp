@@ -1,8 +1,8 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { RiderData, AppSettings, PhotoFile, SocialEntry } from './types';
-import { generateRiderBio } from './services/geminiService';
-import { sendToTelegram } from './services/telegramService';
+import { generateRiderBio } from './geminiService';
+import { sendToTelegram } from './telegramService';
 
 // =========================================================
 // ✅ КОНФИГУРАЦИЯ ЗАКРЫТОГО КЛУБА
@@ -10,10 +10,8 @@ import { sendToTelegram } from './services/telegramService';
 const CLUB_CONFIG: AppSettings & { chatInviteLink: string } = {
   botToken: '8394525518:AAF5RD0yvNLZQjiTS3wN61cC3K2HbNwJtxg', 
   chatId: '-1003610896779',      
-  // ИНСТРУКЦИЯ ПО threadId:
-  // 1. Правой кнопкой на любое сообщение в нужной ветке -> "Копировать ссылку"
-  // 2. В ссылке https://t.me/c/ID_ЧАТА/ID_ТЕМЫ/ID_СООБЩЕНИЯ число посередине - это ID_ТЕМЫ.
-  threadId: '10', 
+  // ID темы из ссылки -1003610896779_2 это число 2
+  threadId: '2', 
   chatInviteLink: 'https://t.me/+52X67-4oxYJmM2E6' 
 };
 
