@@ -4,6 +4,15 @@ import { RiderData, AppSettings, PhotoFile, SocialEntry } from './types';
 import { generateRiderBio } from './geminiService';
 import { sendToTelegram } from './telegramService';
 
+// ==========================================
+// КОНФИГУРАЦИЯ ТЕЛЕГРАМ (ЗАПОЛНИТЕ ОДИН РАЗ)
+// ==========================================
+const TELEGRAM_CONFIG: AppSettings = {
+  botToken: '8394525518:AAF5RD0yvNLZQjiTS3wN61cC3K2HbNwJtxg', // Вставьте сюда токен от @BotFather
+  chatId: '-1003610896779',      // Вставьте сюда ID чата (начинается с -100)
+  threadId: ''                // ID темы (если есть), иначе оставьте пустым
+};
+
 declare global {
   interface Window {
     Telegram: any;
@@ -22,13 +31,6 @@ const App: React.FC = () => {
     socials: [{ platform: 'Telegram', handle: '' }]
   });
 
-  const [settings, setSettings] = useState<AppSettings>({
-    botToken: localStorage.getItem('tg_bot_token') || '',
-    chatId: localStorage.getItem('tg_chat_id') || '',
-    threadId: localStorage.getItem('tg_thread_id') || ''
-  });
-
-  const [showSettings, setShowSettings] = useState(false);
   const [photos, setPhotos] = useState<PhotoFile[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error' | null, message: string }>({ type: null, message: '' });
@@ -60,12 +62,6 @@ const App: React.FC = () => {
       }
     }
   }, [tg]);
-
-  useEffect(() => {
-    localStorage.setItem('tg_bot_token', settings.botToken);
-    localStorage.setItem('tg_chat_id', settings.chatId);
-    localStorage.setItem('tg_thread_id', settings.threadId || '');
-  }, [settings]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -122,9 +118,8 @@ const App: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!settings.botToken || !settings.chatId) {
-      setStatus({ type: 'error', message: 'Настройте Telegram в Config ⚙️' });
-      setShowSettings(true);
+    if (!TELEGRAM_CONFIG.botToken || !TELEGRAM_CONFIG.chatId || TELEGRAM_CONFIG.botToken.includes('ВАШ_')) {
+      setStatus({ type: 'error', message: 'Ошибка конфигурации. Свяжитесь с админом 🛠️' });
       return;
     }
 
@@ -140,7 +135,7 @@ const App: React.FC = () => {
       const aiBio = await generateRiderBio(formData);
       
       const result = await sendToTelegram(
-        settings, 
+        TELEGRAM_CONFIG, 
         formData, 
         aiBio, 
         photos.map(p => p.file)
@@ -154,7 +149,7 @@ const App: React.FC = () => {
            if (tg) tg.close();
         }, 1500);
       } else {
-        throw new Error(result.description || 'Ошибка API. Проверьте настройки бота.');
+        throw new Error(result.description || 'Ошибка API Telegram');
       }
     } catch (error: any) {
       setStatus({ type: 'error', message: `Ошибка: ${error.message}` });
@@ -191,62 +186,6 @@ const App: React.FC = () => {
           </h1>
         </div>
       </div>
-
-      <button 
-        type="button"
-        onClick={() => setShowSettings(!showSettings)}
-        className="absolute top-4 right-4 text-neutral-400 hover:text-white transition-all bg-neutral-800/40 p-2.5 rounded-full backdrop-blur-md border border-neutral-700 z-50 shadow-sm"
-      >
-        <i className="fas fa-cog text-lg"></i>
-      </button>
-
-      {/* Settings Modal */}
-      {showSettings && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
-          <div className="bg-[#1a1a1a] border border-neutral-800 w-full max-w-sm p-6 rounded-3xl shadow-2xl">
-            <h2 className="text-lg font-black text-white uppercase italic tracking-widest mb-6">Config</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-[8px] font-black uppercase text-neutral-500 mb-1 ml-1">Bot API Token</label>
-                <input 
-                  type="password"
-                  value={settings.botToken}
-                  onChange={(e) => setSettings(prev => ({...prev, botToken: e.target.value}))}
-                  className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-3 text-white focus:outline-none text-sm"
-                  placeholder="000000:AAAAAA..."
-                />
-              </div>
-              <div>
-                <label className="block text-[8px] font-black uppercase text-neutral-500 mb-1 ml-1">Chat ID</label>
-                <input 
-                  type="text"
-                  value={settings.chatId}
-                  onChange={(e) => setSettings(prev => ({...prev, chatId: e.target.value}))}
-                  className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-3 text-white focus:outline-none text-sm"
-                  placeholder="-100..."
-                />
-              </div>
-              <div>
-                <label className="block text-[8px] font-black uppercase text-neutral-500 mb-1 ml-1">Topic (Thread) ID</label>
-                <input 
-                  type="text"
-                  value={settings.threadId}
-                  onChange={(e) => setSettings(prev => ({...prev, threadId: e.target.value}))}
-                  className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-3 text-white focus:outline-none text-sm"
-                  placeholder="ID темы"
-                />
-              </div>
-              <button 
-                type="button"
-                onClick={() => setShowSettings(false)}
-                className="w-full bg-white text-black font-black uppercase tracking-widest py-3.5 rounded-xl mt-2 hover:bg-neutral-200 transition-colors"
-              >
-                Apply
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Main Form */}
       <form onSubmit={handleSubmit} className="w-full max-w-lg bg-[#181818]/80 backdrop-blur-md border border-neutral-800 rounded-[2rem] p-6 md:p-8 shadow-2xl relative z-10 mb-10">
