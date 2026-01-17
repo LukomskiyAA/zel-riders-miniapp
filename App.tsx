@@ -23,7 +23,7 @@ const App: React.FC = () => {
     name: '',
     age: '',
     location: '',
-    gears: [''], // Начальное поле для байка
+    gears: [''],
     season: '',
     socials: [{ platform: 'Telegram', handle: '' }],
     about: ''
@@ -101,7 +101,7 @@ const App: React.FC = () => {
       if (user) {
         setFormData(prev => ({
           ...prev,
-          // name не заполняем автозаполнением, пользователь должен сам вписать
+          // Сохраняем ID и Username для формирования ссылок в telegramService
           tgUserId: user.id,
           tgUsername: user.username,
           socials: prev.socials.map((s, i) => 
@@ -121,12 +121,10 @@ const App: React.FC = () => {
 
   const handleNumericInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    // Разрешаем только цифры
     const numericValue = value.replace(/\D/g, '');
     setFormData(prev => ({ ...prev, [name]: numericValue }));
   };
 
-  // Логика байков
   const handleGearChange = (index: number, value: string) => {
     const newGears = [...formData.gears];
     newGears[index] = value;
@@ -142,7 +140,6 @@ const App: React.FC = () => {
     setFormData(prev => ({ ...prev, gears: prev.gears.filter((_, i) => i !== index) }));
   };
 
-  // Логика соцсетей
   const handleSocialChange = (index: number, field: keyof SocialEntry, value: string) => {
     const newSocials = [...formData.socials];
     newSocials[index] = { ...newSocials[index], [field]: value };
@@ -212,13 +209,11 @@ const App: React.FC = () => {
 
       <main className="w-full max-w-lg bg-[#111]/80 backdrop-blur-2xl border border-neutral-900 rounded-[2.5rem] p-6 md:p-8 shadow-2xl z-10">
         <div className="space-y-6">
-          {/* Имя */}
           <div className="space-y-2">
             <label className="text-[10px] font-black text-neutral-500 uppercase ml-1">Имя *</label>
             <input name="name" value={formData.name} onChange={handleInputChange} className="w-full bg-black border border-neutral-800 rounded-2xl px-5 py-4 text-white focus:border-red-600 outline-none transition-all" placeholder="Твоё имя" />
           </div>
 
-          {/* Возраст и Стаж */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-[10px] font-black text-neutral-500 uppercase ml-1">Возраст</label>
@@ -230,13 +225,11 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          {/* Локация */}
           <div className="space-y-2">
             <label className="text-[10px] font-black text-neutral-500 uppercase ml-1">Город / Район *</label>
             <input name="location" value={formData.location} onChange={handleInputChange} className="w-full bg-black border border-neutral-800 rounded-2xl px-5 py-4 text-white focus:border-red-600 outline-none transition-all" placeholder="Зеленоград / Москва" />
           </div>
 
-          {/* Байки */}
           <div className="space-y-3">
             <label className="text-[10px] font-black text-neutral-500 uppercase ml-1 block">Техника *</label>
             {formData.gears.map((gear, idx) => (
@@ -254,7 +247,6 @@ const App: React.FC = () => {
             </button>
           </div>
 
-          {/* Контакты */}
           <div className="p-5 bg-black rounded-3xl border border-neutral-900 space-y-4">
              <label className="text-[10px] font-black text-neutral-500 uppercase block">Контакты (соцсети)</label>
              {formData.socials.map((social, idx) => (
@@ -277,13 +269,11 @@ const App: React.FC = () => {
              </button>
           </div>
 
-          {/* О себе */}
           <div className="space-y-2">
             <label className="text-[10px] font-black text-neutral-500 uppercase ml-1">О себе</label>
             <textarea name="about" value={formData.about} onChange={handleInputChange} className="w-full bg-black border border-neutral-800 rounded-2xl px-5 py-4 text-white focus:border-red-600 outline-none transition-all min-h-[100px]" placeholder="Расскажи что-нибудь интересное..." />
           </div>
 
-          {/* Фото */}
           <div className="space-y-4">
             <label className="text-[10px] font-black text-neutral-500 uppercase ml-1 block">Фото (до 3 шт) *</label>
             <div className="flex flex-wrap gap-4">

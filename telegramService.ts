@@ -28,11 +28,13 @@ export const sendToTelegram = async (
   const { botToken, chatId, threadId } = settings;
   const baseUrl = `https://api.telegram.org/bot${botToken}`;
 
-  // Имя ссылается на профиль ТГ, даже если введено вручную
+  // Формирование ссылки на пользователя
   let userMention = `<b>${escapeHTML(data.name)}</b>`;
   if (data.tgUsername) {
+    // Если есть никнейм - делаем стандартную ссылку
     userMention = `<a href="https://t.me/${data.tgUsername}">${escapeHTML(data.name)}</a>`;
   } else if (data.tgUserId) {
+    // Если никнейма нет - используем внутренний ID Telegram
     userMention = `<a href="tg://user?id=${data.tgUserId}">${escapeHTML(data.name)}</a>`;
   }
 
