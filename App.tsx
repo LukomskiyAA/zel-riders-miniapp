@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { RiderData, AppSettings, PhotoFile, SocialEntry } from './types';
-import { sendToTelegram, checkChatMembership } from './telegramService';
+import { sendToTelegram, checkChatMembership, deleteMessages } from './telegramService';
 
 const CLUB_CONFIG: AppSettings & { chatInviteLink: string } = {
   botToken: '8394525518:AAF5RD0yvNLZQjiTS3wN61cC3K2HbNwJtxg', 
@@ -9,6 +9,8 @@ const CLUB_CONFIG: AppSettings & { chatInviteLink: string } = {
   threadId: '2', 
   chatInviteLink: 'https://t.me/+52X67-4oxYJmM2E6' 
 };
+
+const STORAGE_KEY = 'last_profile_msg_ids';
 
 declare global {
   interface Window {
@@ -34,11 +36,11 @@ const App: React.FC = () => {
   const [isAlreadyMember, setIsAlreadyMember] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [status, setStatus] = useState<{ type: 'success' | 'error' | null, message: string }>({ type: null, message: '' });
+  const [lastMessageIds, setLastMessageIds] = useState<number[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Инициализация и проверка членства
+  // Инициализация и проверка
   useEffect(() => {
     if (tg) {
       tg.ready();
@@ -59,13 +61,20 @@ const App: React.FC = () => {
           )
         }));
 
-        // Проверка на статус в чате
+        // Получаем ID старых сообщений из облака
+        tg.CloudStorage.getItem(STORAGE_KEY, (err: any, value: string) => {
+          if (!err && value) {
+            try {
+              setLastMessageIds(JSON.parse(value));
+            } catch (e) { console.error(e); }
+          }
+        });
+
+        // Проверка членства
         checkChatMembership(CLUB_CONFIG, user.id).then(isMember => {
           setIsAlreadyMember(isMember);
           setIsLoadingMembership(false);
-        }).catch(() => {
-          setIsLoadingMembership(false); // В случае ошибки просто показываем форму
-        });
+        }).catch(() => setIsLoadingMembership(false));
       } else {
         setIsLoadingMembership(false);
       }
@@ -90,9 +99,18 @@ const App: React.FC = () => {
     tg?.MainButton?.showProgress();
 
     try {
+      // 1. Удаляем старую анкету, если её ID сохранены
+      if (lastMessageIds.length > 0) {
+        await deleteMessages(CLUB_CONFIG, lastMessageIds);
+      }
+
+      // 2. Отправляем новую анкету
       const result = await sendToTelegram(CLUB_CONFIG, formData, photos.map(p => p.file));
 
-      if (result.ok || (Array.isArray(result) && result[0]?.ok)) {
+      if (result.ok) {
+        // 3. Сохраняем новые ID в облако для следующего раза
+        tg.CloudStorage.setItem(STORAGE_KEY, JSON.stringify(result.messageIds));
+        
         setIsSuccess(true);
         tg?.HapticFeedback?.notificationOccurred('success');
         tg?.MainButton?.hide();
@@ -100,13 +118,13 @@ const App: React.FC = () => {
         throw new Error(result.description || 'Ошибка API');
       }
     } catch (error: any) {
-      setStatus({ type: 'error', message: `Ошибка: ${error.message}` });
+      tg?.showAlert(`Ошибка: ${error.message}`);
       tg?.HapticFeedback?.notificationOccurred('error');
       tg?.MainButton?.hideProgress();
     } finally {
       setIsSubmitting(false);
     }
-  }, [formData, photos, isSubmitting, isSuccess, tg]);
+  }, [formData, photos, isSubmitting, isSuccess, tg, lastMessageIds]);
 
   useEffect(() => {
     if (tg && !isSuccess && !isAlreadyMember && !isLoadingMembership) {
@@ -141,10 +159,7 @@ const App: React.FC = () => {
     setFormData(prev => ({ ...prev, gears: newGears }));
   };
 
-  const addGear = () => {
-    setFormData(prev => ({ ...prev, gears: [...prev.gears, ''] }));
-  };
-
+  const addGear = () => setFormData(prev => ({ ...prev, gears: [...prev.gears, ''] }));
   const removeGear = (index: number) => {
     if (formData.gears.length <= 1) return;
     setFormData(prev => ({ ...prev, gears: prev.gears.filter((_, i) => i !== index) }));
@@ -156,12 +171,10 @@ const App: React.FC = () => {
     setFormData(prev => ({ ...prev, socials: newSocials }));
   };
 
-  const addSocialEntry = () => {
-    setFormData(prev => ({
-      ...prev,
-      socials: [...prev.socials, { platform: 'Instagram', handle: '' }]
-    }));
-  };
+  const addSocialEntry = () => setFormData(prev => ({
+    ...prev,
+    socials: [...prev.socials, { platform: 'Instagram', handle: '' }]
+  }));
 
   const removeSocialEntry = (index: number) => {
     if (formData.socials.length <= 1) return;

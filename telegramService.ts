@@ -21,6 +21,29 @@ const formatSocialLink = (platform: string, handle: string): string => {
 };
 
 /**
+ * Удаляет массив сообщений из чата
+ */
+export const deleteMessages = async (settings: AppSettings, messageIds: number[]) => {
+  const { botToken, chatId } = settings;
+  const baseUrl = `https://api.telegram.org/bot${botToken}/deleteMessage`;
+
+  for (const messageId of messageIds) {
+    try {
+      await fetch(baseUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          message_id: messageId
+        }),
+      });
+    } catch (e) {
+      console.error(`Failed to delete message ${messageId}:`, e);
+    }
+  }
+};
+
+/**
  * Проверяет статус участника в чате
  */
 export const checkChatMembership = async (settings: AppSettings, userId: number): Promise<boolean> => {
@@ -32,7 +55,6 @@ export const checkChatMembership = async (settings: AppSettings, userId: number)
     const result = await response.json();
     if (result.ok) {
       const status = result.result.status;
-      // Статусы, означающие, что пользователь в чате
       return ['member', 'administrator', 'creator'].includes(status);
     }
     return false;
@@ -46,7 +68,7 @@ export const sendToTelegram = async (
   settings: AppSettings,
   data: RiderData,
   photos: File[]
-) => {
+): Promise<{ ok: boolean, messageIds: number[], description?: string }> => {
   const { botToken, chatId, threadId } = settings;
   const baseUrl = `https://api.telegram.org/bot${botToken}`;
 
@@ -85,10 +107,6 @@ ${socialInfo}${aboutSection}
   `.trim();
 
   try {
-    const formData = new FormData();
-    formData.append('chat_id', chatId);
-    if (threadId) formData.append('message_thread_id', threadId);
-
     if (photos.length === 0) {
       const response = await fetch(`${baseUrl}/sendMessage`, {
         method: 'POST',
@@ -101,8 +119,17 @@ ${socialInfo}${aboutSection}
           disable_web_page_preview: true
         }),
       });
-      return await response.json();
+      const res = await response.json();
+      return { 
+        ok: res.ok, 
+        messageIds: res.ok ? [res.result.message_id] : [],
+        description: res.description 
+      };
     } else {
+      const formData = new FormData();
+      formData.append('chat_id', chatId);
+      if (threadId) formData.append('message_thread_id', threadId);
+
       const media = photos.map((_, index) => ({
         type: 'photo',
         media: `attach://photo${index}`,
@@ -119,10 +146,15 @@ ${socialInfo}${aboutSection}
         method: 'POST',
         body: formData,
       });
-      return await response.json();
+      const res = await response.json();
+      return { 
+        ok: res.ok, 
+        messageIds: res.ok ? res.result.map((m: any) => m.message_id) : [],
+        description: res.description 
+      };
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Telegram API Error:', error);
-    throw error;
+    return { ok: false, messageIds: [], description: error.message };
   }
 };
