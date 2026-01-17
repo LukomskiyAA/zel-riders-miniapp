@@ -8,10 +8,11 @@ export interface RiderData {
   name: string;
   age: string;
   location: string;
-  gear: string;
+  gears: string[]; // Массив байков
   season: string;
   socials: SocialEntry[];
-  tgUserId?: number; // Added to link to profile
+  about?: string; // Поле "О себе"
+  tgUserId?: number;
   tgUsername?: string;
 }
 

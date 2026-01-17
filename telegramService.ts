@@ -8,6 +8,18 @@ const escapeHTML = (text: string): string => {
     .replace(/>/g, '&gt;');
 };
 
+const formatSocialLink = (platform: string, handle: string): string => {
+  const cleanHandle = handle.trim().replace(/^@/, '');
+  if (!cleanHandle) return '';
+  
+  let url = '';
+  if (platform === 'Telegram') url = `https://t.me/${cleanHandle}`;
+  else if (platform === 'Instagram') url = `https://www.instagram.com/${cleanHandle}`;
+  else if (platform === 'VK') url = `https://vk.com/${cleanHandle}`;
+  
+  return url ? `<a href="${url}">${url}</a>` : escapeHTML(handle);
+};
+
 export const sendToTelegram = async (
   settings: AppSettings,
   data: RiderData,
@@ -16,7 +28,7 @@ export const sendToTelegram = async (
   const { botToken, chatId, threadId } = settings;
   const baseUrl = `https://api.telegram.org/bot${botToken}`;
 
-  // Формируем активную ссылку на профиль пользователя
+  // Имя ссылается на профиль ТГ, даже если введено вручную
   let userMention = `<b>${escapeHTML(data.name)}</b>`;
   if (data.tgUsername) {
     userMention = `<a href="https://t.me/${data.tgUsername}">${escapeHTML(data.name)}</a>`;
@@ -24,21 +36,31 @@ export const sendToTelegram = async (
     userMention = `<a href="tg://user?id=${data.tgUserId}">${escapeHTML(data.name)}</a>`;
   }
 
+  const gearsList = data.gears
+    .filter(g => g.trim() !== '')
+    .map(g => `• ${escapeHTML(g)}`)
+    .join('\n');
+
   const validSocials = data.socials.filter(s => s.handle.trim() !== '');
   const socialInfo = validSocials.length > 0
-    ? validSocials.map(s => `<b>${escapeHTML(s.platform)}:</b> ${escapeHTML(s.handle)}`).join('\n🔗 ')
+    ? validSocials.map(s => `<b>${escapeHTML(s.platform)}:</b> ${formatSocialLink(s.platform, s.handle)}`).join('\n')
     : 'Не указано';
 
-  // Финальный чистый формат без полосок и заголовков
+  const aboutSection = data.about?.trim() 
+    ? `\n\n📝 <b>О себе:</b>\n<i>${escapeHTML(data.about)}</i>` 
+    : '';
+
   const caption = `
 👤 <b>Имя:</b> ${userMention}
-🎂 <b>Возраст:</b> ${escapeHTML(data.age || 'Секрет')}
+🎂 <b>Возраст:</b> ${escapeHTML(data.age)}
 📍 <b>Локация:</b> ${escapeHTML(data.location)}
-🏍 <b>Техника:</b> ${escapeHTML(data.gear)}
 ⏱ <b>Стаж:</b> ${escapeHTML(data.season)} сезон(ов)
 
+🏍 <b>Техника:</b>
+${gearsList}
+
 🔗 <b>Контакты:</b>
-${socialInfo}
+${socialInfo}${aboutSection}
   `.trim();
 
   try {
