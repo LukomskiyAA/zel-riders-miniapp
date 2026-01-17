@@ -204,9 +204,6 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen p-6 flex flex-col items-center justify-center text-center bg-[#0a0a0a]">
         <div className="w-full max-w-xs p-8 bg-[#181818] rounded-[2.5rem] border-2 border-green-500 shadow-[0_0_50px_rgba(34,197,94,0.2)]">
-          <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-            <i className={`fas ${isAlreadyMember ? 'fa-motorcycle' : 'fa-check'} text-4xl text-green-500`}></i>
-          </div>
           <h2 className="text-2xl font-black text-white uppercase italic leading-tight mb-2">{title}</h2>
           <p className="text-[10px] text-neutral-500 uppercase tracking-[0.2em] mb-8">{subTitle}</p>
           <div className="space-y-4">
