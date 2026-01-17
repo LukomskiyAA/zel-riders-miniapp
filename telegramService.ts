@@ -20,6 +20,28 @@ const formatSocialLink = (platform: string, handle: string): string => {
   return url ? `<a href="${url}">${url}</a>` : escapeHTML(handle);
 };
 
+/**
+ * Проверяет статус участника в чате
+ */
+export const checkChatMembership = async (settings: AppSettings, userId: number): Promise<boolean> => {
+  const { botToken, chatId } = settings;
+  const url = `https://api.telegram.org/bot${botToken}/getChatMember?chat_id=${chatId}&user_id=${userId}`;
+
+  try {
+    const response = await fetch(url);
+    const result = await response.json();
+    if (result.ok) {
+      const status = result.result.status;
+      // Статусы, означающие, что пользователь в чате
+      return ['member', 'administrator', 'creator'].includes(status);
+    }
+    return false;
+  } catch (error) {
+    console.error('Error checking membership:', error);
+    return false;
+  }
+};
+
 export const sendToTelegram = async (
   settings: AppSettings,
   data: RiderData,
@@ -28,13 +50,10 @@ export const sendToTelegram = async (
   const { botToken, chatId, threadId } = settings;
   const baseUrl = `https://api.telegram.org/bot${botToken}`;
 
-  // Формирование ссылки на пользователя
   let userMention = `<b>${escapeHTML(data.name)}</b>`;
   if (data.tgUsername) {
-    // Если есть никнейм - делаем стандартную ссылку
     userMention = `<a href="https://t.me/${data.tgUsername}">${escapeHTML(data.name)}</a>`;
   } else if (data.tgUserId) {
-    // Если никнейма нет - используем внутренний ID Telegram
     userMention = `<a href="tg://user?id=${data.tgUserId}">${escapeHTML(data.name)}</a>`;
   }
 

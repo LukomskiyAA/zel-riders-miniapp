@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { RiderData, AppSettings, PhotoFile, SocialEntry } from './types';
-import { sendToTelegram } from './telegramService';
+import { sendToTelegram, checkChatMembership } from './telegramService';
 
 const CLUB_CONFIG: AppSettings & { chatInviteLink: string } = {
   botToken: '8394525518:AAF5RD0yvNLZQjiTS3wN61cC3K2HbNwJtxg', 
@@ -30,17 +30,53 @@ const App: React.FC = () => {
   });
 
   const [photos, setPhotos] = useState<PhotoFile[]>([]);
+  const [isLoadingMembership, setIsLoadingMembership] = useState(true);
+  const [isAlreadyMember, setIsAlreadyMember] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error' | null, message: string }>({ type: null, message: '' });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Инициализация и проверка членства
+  useEffect(() => {
+    if (tg) {
+      tg.ready();
+      tg.expand();
+      tg.setHeaderColor('#0a0a0a');
+      tg.setBackgroundColor('#0a0a0a');
+      
+      const user = tg.initDataUnsafe?.user;
+      if (user) {
+        setFormData(prev => ({
+          ...prev,
+          tgUserId: user.id,
+          tgUsername: user.username,
+          socials: prev.socials.map((s, i) => 
+            i === 0 && s.platform === 'Telegram' && !s.handle 
+              ? { ...s, handle: user.username ? `@${user.username}` : '' } 
+              : s
+          )
+        }));
+
+        // Проверка на статус в чате
+        checkChatMembership(CLUB_CONFIG, user.id).then(isMember => {
+          setIsAlreadyMember(isMember);
+          setIsLoadingMembership(false);
+        }).catch(() => {
+          setIsLoadingMembership(false); // В случае ошибки просто показываем форму
+        });
+      } else {
+        setIsLoadingMembership(false);
+      }
+    }
+  }, [tg]);
+
   const performSubmit = useCallback(async () => {
     if (isSubmitting || isSuccess) return;
     
     const hasGear = formData.gears.some(g => g.trim().length > 0);
-    if (!formData.name || !formData.location || !hasGear || !formData.season) {
+    if (!formData.name.trim() || !formData.location.trim() || !hasGear || !formData.season.trim()) {
         tg?.showAlert("Заполни все обязательные поля со звездочкой (*)");
         return;
     }
@@ -54,11 +90,7 @@ const App: React.FC = () => {
     tg?.MainButton?.showProgress();
 
     try {
-      const result = await sendToTelegram(
-        CLUB_CONFIG, 
-        formData, 
-        photos.map(p => p.file)
-      );
+      const result = await sendToTelegram(CLUB_CONFIG, formData, photos.map(p => p.file));
 
       if (result.ok || (Array.isArray(result) && result[0]?.ok)) {
         setIsSuccess(true);
@@ -77,7 +109,7 @@ const App: React.FC = () => {
   }, [formData, photos, isSubmitting, isSuccess, tg]);
 
   useEffect(() => {
-    if (tg && !isSuccess) {
+    if (tg && !isSuccess && !isAlreadyMember && !isLoadingMembership) {
       tg.MainButton.setText('ОТПРАВИТЬ АНКЕТУ');
       tg.MainButton.setParams({
         is_visible: true,
@@ -87,32 +119,10 @@ const App: React.FC = () => {
       });
       tg.MainButton.onClick(performSubmit);
       return () => tg.MainButton.offClick(performSubmit);
+    } else {
+      tg?.MainButton?.hide();
     }
-  }, [tg, performSubmit, formData.name, isSubmitting, isSuccess]);
-
-  useEffect(() => {
-    if (tg) {
-      tg.ready();
-      tg.expand();
-      tg.setHeaderColor('#0a0a0a');
-      tg.setBackgroundColor('#0a0a0a');
-      
-      const user = tg.initDataUnsafe?.user;
-      if (user) {
-        setFormData(prev => ({
-          ...prev,
-          // Сохраняем ID и Username для формирования ссылок в telegramService
-          tgUserId: user.id,
-          tgUsername: user.username,
-          socials: prev.socials.map((s, i) => 
-            i === 0 && s.platform === 'Telegram' && !s.handle 
-              ? { ...s, handle: user.username ? `@${user.username}` : '' } 
-              : s
-          )
-        }));
-      }
-    }
-  }, [tg]);
+  }, [tg, performSubmit, formData.name, isSubmitting, isSuccess, isAlreadyMember, isLoadingMembership]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -175,27 +185,47 @@ const App: React.FC = () => {
     });
   };
 
-  if (isSuccess) {
+  if (isLoadingMembership) {
     return (
-      <div className="min-h-screen p-6 flex flex-col items-center justify-center text-center bg-[#0a0a0a]">
-        <div className="w-full max-w-xs p-8 bg-[#181818] rounded-[2.5rem] border-2 border-green-500 shadow-[0_0_50px_rgba(34,197,94,0.2)]">
-          <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-            <i className="fas fa-check text-4xl text-green-500"></i>
-          </div>
-          <h2 className="text-2xl font-black text-white uppercase italic leading-tight mb-2">Готово</h2>
-          <p className="text-[10px] text-neutral-500 uppercase tracking-[0.2em] mb-8">Анкета отправлена</p>
-          <div className="space-y-4">
-            <a href={CLUB_CONFIG.chatInviteLink} className="block w-full py-5 bg-white text-black font-black uppercase tracking-widest rounded-xl">
-              Вступить в чат
-            </a>
-          </div>
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-neutral-500 text-[10px] font-black uppercase tracking-[0.3em]">Проверка доступа...</p>
         </div>
       </div>
     );
   }
 
+  if (isSuccess || isAlreadyMember) {
+    const title = isAlreadyMember ? "С возвращением!" : "Готово";
+    const subTitle = isAlreadyMember ? "Ты уже в банде Zel Riders" : "Анкета отправлена";
+    const buttonText = isAlreadyMember ? "Перейти в чат" : "Вступить в чат";
+
+    return (
+      <div className="min-h-screen p-6 flex flex-col items-center justify-center text-center bg-[#0a0a0a]">
+        <div className="w-full max-w-xs p-8 bg-[#181818] rounded-[2.5rem] border-2 border-green-500 shadow-[0_0_50px_rgba(34,197,94,0.2)]">
+          <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+            <i className={`fas ${isAlreadyMember ? 'fa-motorcycle' : 'fa-check'} text-4xl text-green-500`}></i>
+          </div>
+          <h2 className="text-2xl font-black text-white uppercase italic leading-tight mb-2">{title}</h2>
+          <p className="text-[10px] text-neutral-500 uppercase tracking-[0.2em] mb-8">{subTitle}</p>
+          <div className="space-y-4">
+            <a href={CLUB_CONFIG.chatInviteLink} className="block w-full py-5 bg-white text-black font-black uppercase tracking-widest rounded-xl shadow-lg transform active:scale-95 transition-all">
+              {buttonText}
+            </a>
+          </div>
+        </div>
+        {isAlreadyMember && (
+          <p className="mt-8 text-neutral-700 text-[9px] font-black uppercase tracking-widest italic">
+            Рады тебя видеть снова!
+          </p>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen p-4 flex flex-col items-center justify-start relative bg-[#0a0a0a] pb-24">
+    <div className="min-h-screen p-4 flex flex-col items-center justify-start relative bg-[#0a0a0a] pb-24 animate-in fade-in duration-700">
       <header className="w-full max-w-lg mb-8 flex flex-col items-center pt-8 z-20">
         <h1 className="text-4xl font-black uppercase italic tracking-tighter">
           <span className="text-red-600">Z</span><span className="text-white">EL</span>
