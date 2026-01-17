@@ -10,7 +10,8 @@ const CLUB_CONFIG: AppSettings & { chatInviteLink: string } = {
   chatInviteLink: 'https://t.me/+52X67-4oxYJmM2E6' 
 };
 
-const STORAGE_KEY = 'last_profile_msg_ids';
+// Ключ для хранения массива всех ID сообщений анкет пользователя
+const STORAGE_KEY = 'all_profile_history_ids';
 
 declare global {
   interface Window {
@@ -36,11 +37,11 @@ const App: React.FC = () => {
   const [isAlreadyMember, setIsAlreadyMember] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [lastMessageIds, setLastMessageIds] = useState<number[]>([]);
+  const [historyMessageIds, setHistoryMessageIds] = useState<number[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Инициализация и проверка
+  // Инициализация и загрузка истории
   useEffect(() => {
     if (tg) {
       tg.ready();
@@ -61,12 +62,17 @@ const App: React.FC = () => {
           )
         }));
 
-        // Получаем ID старых сообщений из облака
+        // Загружаем всю историю ID сообщений (это может быть массив от всех прошлых отправок)
         tg.CloudStorage.getItem(STORAGE_KEY, (err: any, value: string) => {
           if (!err && value) {
             try {
-              setLastMessageIds(JSON.parse(value));
-            } catch (e) { console.error(e); }
+              const parsed = JSON.parse(value);
+              if (Array.isArray(parsed)) {
+                setHistoryMessageIds(parsed);
+              }
+            } catch (e) { 
+              console.error("Failed to parse history IDs", e); 
+            }
           }
         });
 
@@ -99,16 +105,18 @@ const App: React.FC = () => {
     tg?.MainButton?.showProgress();
 
     try {
-      // 1. Удаляем старую анкету, если её ID сохранены
-      if (lastMessageIds.length > 0) {
-        await deleteMessages(CLUB_CONFIG, lastMessageIds);
+      // 1. Пытаемся удалить ВСЕ сообщения из истории
+      if (historyMessageIds.length > 0) {
+        // Мы передаем весь накопившийся список ID
+        await deleteMessages(CLUB_CONFIG, historyMessageIds);
       }
 
       // 2. Отправляем новую анкету
       const result = await sendToTelegram(CLUB_CONFIG, formData, photos.map(p => p.file));
 
       if (result.ok) {
-        // 3. Сохраняем новые ID в облако для следующего раза
+        // 3. Сохраняем в облако ТОЛЬКО новые ID. 
+        // Старые ID удалены (или попытка была совершена), больше они нам не нужны.
         tg.CloudStorage.setItem(STORAGE_KEY, JSON.stringify(result.messageIds));
         
         setIsSuccess(true);
@@ -124,8 +132,9 @@ const App: React.FC = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [formData, photos, isSubmitting, isSuccess, tg, lastMessageIds]);
+  }, [formData, photos, isSubmitting, isSuccess, tg, historyMessageIds]);
 
+  // Эффект для управления Главной Кнопкой (MainButton)
   useEffect(() => {
     if (tg && !isSuccess && !isAlreadyMember && !isLoadingMembership) {
       tg.MainButton.setText('ОТПРАВИТЬ АНКЕТУ');
