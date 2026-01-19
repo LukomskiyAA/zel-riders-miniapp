@@ -103,12 +103,13 @@ const App: React.FC = () => {
     tg?.MainButton?.showProgress();
 
     try {
-      // ПРОВЕРКА НА МАТ И ЦЕНЗУРУ
+      // ИНТЕЛЛЕКТУАЛЬНАЯ ПРОВЕРКА НА МАТ (GEMINI)
       const safetyCheck = await validateContentSafety(formData);
       if (!safetyCheck.isSafe) {
-        tg?.showAlert("Обнаружена ненормативная лексика или неподобающий контент. Пожалуйста, отредактируй анкету.");
+        tg?.showAlert("⛔️ Анкета отклонена системой модерации. Матерные слова и оскорбления запрещены правилами сообщества!");
         setIsSubmitting(false);
         tg?.MainButton?.hideProgress();
+        tg?.HapticFeedback?.notificationOccurred('error');
         return;
       }
 
