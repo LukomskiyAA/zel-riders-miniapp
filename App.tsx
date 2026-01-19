@@ -100,25 +100,26 @@ const App: React.FC = () => {
     }
 
     setIsSubmitting(true);
+    tg?.MainButton?.setParams({ text: 'МОДЕРАЦИЯ...' });
     tg?.MainButton?.showProgress();
 
     try {
-      // ИНТЕЛЛЕКТУАЛЬНАЯ ПРОВЕРКА НА МАТ (GEMINI)
       const safetyCheck = await validateContentSafety(formData);
       if (!safetyCheck.isSafe) {
-        tg?.showAlert("⛔️ Анкета отклонена системой модерации. Матерные слова и оскорбления запрещены правилами сообщества!");
+        tg?.showAlert("⛔️ Анкета отклонена! Использование матерных слов или оскорблений строго запрещено.");
         setIsSubmitting(false);
+        tg?.MainButton?.setParams({ text: 'ОТПРАВИТЬ АНКЕТУ' });
         tg?.MainButton?.hideProgress();
         tg?.HapticFeedback?.notificationOccurred('error');
         return;
       }
 
-      // 1. Удаляем старые анкеты
+      tg?.MainButton?.setParams({ text: 'ОТПРАВЛЯЕМ...' });
+
       if (historyMessageIds.length > 0) {
         await deleteMessages(CLUB_CONFIG, historyMessageIds);
       }
 
-      // 2. Отправляем новую
       const result = await sendToTelegram(CLUB_CONFIG, formData, photos.map(p => p.file));
 
       if (result.ok) {
@@ -132,6 +133,7 @@ const App: React.FC = () => {
     } catch (error: any) {
       tg?.showAlert(`Ошибка: ${error.message}`);
       tg?.HapticFeedback?.notificationOccurred('error');
+      tg?.MainButton?.setParams({ text: 'ОТПРАВИТЬ АНКЕТУ' });
       tg?.MainButton?.hideProgress();
     } finally {
       setIsSubmitting(false);
@@ -349,27 +351,36 @@ const App: React.FC = () => {
           </div>
 
           <div className="space-y-4">
-            <label className="text-[10px] font-black text-neutral-500 uppercase ml-1 block">Фото (до 3 шт) *</label>
-            <div className="flex flex-wrap gap-4">
-              {photos.map((p, idx) => (
-                <div key={idx} className="relative w-24 h-24 rounded-2xl overflow-hidden border border-neutral-800 shadow-lg">
-                  <img src={p.preview} className="w-full h-full object-cover" alt="Preview" />
-                  <button onClick={() => removePhoto(idx)} className="absolute top-1 right-1 bg-red-600 w-6 h-6 rounded-full text-white text-[10px] flex items-center justify-center">
-                    <i className="fas fa-times"></i>
-                  </button>
+            <label className="text-[10px] font-black text-neutral-500 uppercase ml-1 block">Фото (хотя бы одно) *</label>
+            <div className="grid grid-cols-3 gap-3">
+              {[0, 1, 2].map((idx) => (
+                <div key={idx} className="aspect-square relative rounded-2xl overflow-hidden border-2 border-dashed border-neutral-900 bg-black/40 group hover:border-red-600/50 transition-all">
+                  {photos[idx] ? (
+                    <>
+                      <img src={photos[idx].preview} className="w-full h-full object-cover" alt="Preview" />
+                      <button 
+                        onClick={() => removePhoto(idx)} 
+                        className="absolute top-1.5 right-1.5 bg-red-600/90 hover:bg-red-600 w-6 h-6 rounded-full text-white text-[10px] flex items-center justify-center backdrop-blur-sm transition-colors shadow-lg"
+                      >
+                        <i className="fas fa-times"></i>
+                      </button>
+                    </>
+                  ) : (
+                    <button 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full h-full flex flex-col items-center justify-center text-neutral-700 group-hover:text-red-600 transition-all"
+                    >
+                      <i className="fas fa-plus text-xl mb-1"></i>
+                      <span className="text-[7px] font-black uppercase tracking-wider">Добавить</span>
+                    </button>
+                  )}
                 </div>
               ))}
-              {photos.length < 3 && (
-                <button 
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-24 h-24 rounded-2xl border-2 border-dashed border-neutral-900 flex flex-col items-center justify-center text-neutral-700 hover:text-green-600 hover:border-green-600 transition-all bg-black/40"
-                >
-                  <i className="fas fa-camera text-xl mb-1"></i>
-                  <span className="text-[8px] font-black uppercase tracking-tighter">Загрузить</span>
-                </button>
-              )}
             </div>
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" multiple onChange={handleFileChange} />
+            <p className="text-[8px] text-neutral-600 uppercase font-bold text-center tracking-[0.1em]">
+               {photos.length === 0 ? "Нажмите на любой слот, чтобы выбрать фото" : `Загружено ${photos.length} из 3`}
+            </p>
           </div>
         </div>
       </main>
