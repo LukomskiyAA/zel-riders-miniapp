@@ -1,4 +1,3 @@
-
 import { RiderData, AppSettings } from './types';
 
 const escapeHTML = (text: string): string => {
@@ -20,9 +19,6 @@ const formatSocialLink = (platform: string, handle: string): string => {
   return url ? `<a href="${url}">${url}</a>` : escapeHTML(handle);
 };
 
-/**
- * Удаляет массив сообщений из чата
- */
 export const deleteMessages = async (settings: AppSettings, messageIds: number[]) => {
   const { botToken, chatId } = settings;
   const baseUrl = `https://api.telegram.org/bot${botToken}/deleteMessage`;
@@ -43,10 +39,6 @@ export const deleteMessages = async (settings: AppSettings, messageIds: number[]
   }
 };
 
-/**
- * Возвращает статус участника в чате:
- * 'creator', 'administrator', 'member', 'restricted', 'left', 'kicked'
- */
 export const getChatMemberStatus = async (settings: AppSettings, userId: number): Promise<string> => {
   const { botToken, chatId } = settings;
   const url = `https://api.telegram.org/bot${botToken}/getChatMember?chat_id=${chatId}&user_id=${userId}`;
@@ -64,11 +56,9 @@ export const getChatMemberStatus = async (settings: AppSettings, userId: number)
   }
 };
 
-// Fix: Added missing aiBio parameter to match the function call on line 127 in App.tsx
 export const sendToTelegram = async (
   settings: AppSettings,
   data: RiderData,
-  aiBio: string,
   photos: File[]
 ): Promise<{ ok: boolean, messageIds: number[], description?: string }> => {
   const { botToken, chatId, threadId } = settings;
@@ -95,10 +85,9 @@ export const sendToTelegram = async (
     ? `\n\n📝 <b>О себе:</b>\n<i>${escapeHTML(data.about)}</i>` 
     : '';
 
-  // Included aiBio in the caption to provide users with the AI-generated rider description
   const caption = `
 👤 <b>Имя:</b> ${userMention}
-🎂 <b>Возраст:</b> ${escapeHTML(data.age)}
+🎂 <b>Возраст:</b> ${escapeHTML(data.age || 'Не указан')}
 📍 <b>Локация:</b> ${escapeHTML(data.location)}
 ⏱ <b>Стаж:</b> ${escapeHTML(data.season)} сезон(ов)
 
@@ -106,10 +95,7 @@ export const sendToTelegram = async (
 ${gearsList}
 
 🔗 <b>Контакты:</b>
-${socialInfo}
-
-📝 <b>О себе (AI):</b>
-<i>${escapeHTML(aiBio)}</i>${aboutSection}
+${socialInfo}${aboutSection}
   `.trim();
 
   try {

@@ -1,8 +1,7 @@
-
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { RiderData, AppSettings, PhotoFile, SocialEntry } from './types';
 import { sendToTelegram, getChatMemberStatus, deleteMessages } from './telegramService';
-import { validateContentSafety, generateRiderBio } from './geminiService';
+import { validateContentSafety } from './geminiService';
 
 const CLUB_CONFIG: AppSettings & { chatInviteLink: string } = {
   botToken: '8394525518:AAF5RD0yvNLZQjiTS3wN61cC3K2HbNwJtxg', 
@@ -100,15 +99,15 @@ const App: React.FC = () => {
     }
 
     setIsSubmitting(true);
-    tg?.MainButton?.setParams({ text: 'МОДЕРАЦИЯ...' });
+    tg?.MainButton?.setParams({ text: 'ПРОВЕРКА...' });
     tg?.MainButton?.showProgress();
 
     try {
-      // 1. ПРОВЕРКА НА МАТ (ДВУХУРОВНЕВАЯ)
+      // 1. Проверка на мат
       const safetyCheck = await validateContentSafety(formData);
       
       if (!safetyCheck.isSafe) {
-        tg?.showAlert("⛔️ ОШИБКА МОДЕРАЦИИ!\n\nТекст содержит запрещенные слова или спецсимволы. Пожалуйста, отредактируй анкету.");
+        tg?.showAlert("⛔️ АНКЕТА НЕ ПРОШЛА МОДЕРАЦИЮ\n\nОбнаружена нецензурная лексика. Пожалуйста, отредактируйте текст.");
         setIsSubmitting(false);
         tg?.MainButton?.setParams({ text: 'ОТПРАВИТЬ АНКЕТУ' });
         tg?.MainButton?.hideProgress();
@@ -116,16 +115,13 @@ const App: React.FC = () => {
         return;
       }
 
-      tg?.MainButton?.setParams({ text: 'ГЕНЕРАЦИЯ BIO...' });
-      const aiBio = await generateRiderBio(formData);
-
       tg?.MainButton?.setParams({ text: 'ОТПРАВЛЯЕМ...' });
 
       if (historyMessageIds.length > 0) {
         await deleteMessages(CLUB_CONFIG, historyMessageIds);
       }
 
-      const result = await sendToTelegram(CLUB_CONFIG, formData, aiBio, photos.map(p => p.file));
+      const result = await sendToTelegram(CLUB_CONFIG, formData, photos.map(p => p.file));
 
       if (result.ok) {
         tg.CloudStorage.setItem(STORAGE_KEY, JSON.stringify(result.messageIds));
