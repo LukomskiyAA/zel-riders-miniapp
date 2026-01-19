@@ -12,6 +12,7 @@ const CLUB_CONFIG: AppSettings & { chatInviteLink: string } = {
 
 // Ключ для хранения массива всех ID сообщений анкет пользователя
 const STORAGE_KEY = 'all_profile_history_ids';
+const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB
 
 declare global {
   interface Window {
@@ -190,12 +191,28 @@ const App: React.FC = () => {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []) as File[];
+    
+    // Проверка на количество
     if (photos.length + files.length > 3) {
       tg?.showAlert("Максимум 3 фото");
       return;
     }
+
+    // Проверка на размер каждого файла
+    for (const file of files) {
+      if (file.size > MAX_FILE_SIZE) {
+        tg?.showAlert(`Фото "${file.name}" слишком тяжелое. Максимум 4 МБ.`);
+        // Сбрасываем input, чтобы можно было выбрать заново
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+    }
+
     const newPhotos = files.map(file => ({ file, preview: URL.createObjectURL(file) }));
     setPhotos(prev => [...prev, ...newPhotos]);
+    
+    // Сбрасываем input, чтобы событие change срабатывало даже при выборе того же файла
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const removePhoto = (index: number) => {
