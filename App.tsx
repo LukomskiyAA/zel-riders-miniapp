@@ -104,10 +104,11 @@ const App: React.FC = () => {
     tg?.MainButton?.showProgress();
 
     try {
-      // 1. ПРОВЕРКА НА МАТ
+      // 1. ПРОВЕРКА НА МАТ (ДВУХУРОВНЕВАЯ)
       const safetyCheck = await validateContentSafety(formData);
+      
       if (!safetyCheck.isSafe) {
-        tg?.showAlert("⛔️ Анкета отклонена! Матерные слова и оскорбления запрещены.");
+        tg?.showAlert("⛔️ ОШИБКА МОДЕРАЦИИ!\n\nТекст содержит запрещенные слова или спецсимволы. Пожалуйста, отредактируй анкету.");
         setIsSubmitting(false);
         tg?.MainButton?.setParams({ text: 'ОТПРАВИТЬ АНКЕТУ' });
         tg?.MainButton?.hideProgress();

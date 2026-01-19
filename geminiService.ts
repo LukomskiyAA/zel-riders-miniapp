@@ -1,14 +1,37 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { RiderData } from "./types";
 
+// Список запрещенных корней для мгновенной локальной проверки
+const FORBIDDEN_ROOTS = [
+  'хуй', 'хуе', 'хуи', 'хуя',
+  'пизд',
+  'еба', 'еби', 'ебл', 'ебу', 'ёб',
+  'бля',
+  'сука', 'суч',
+  'муд',
+  'гондон', 'гандон',
+  'залуп',
+  'манда',
+  'дроч'
+];
+
+/**
+ * Локальная проверка на мат (быстрая).
+ */
+const localProfanityCheck = (text: string): boolean => {
+  const lowerText = text.toLowerCase();
+  // Убираем лишние символы для проверки "скрытого" мата (п.и.з.д.а -> пизда)
+  const cleanText = lowerText.replace(/[^а-яёa-z0-9]/g, '');
+  
+  return FORBIDDEN_ROOTS.some(root => 
+    lowerText.includes(root) || cleanText.includes(root)
+  );
+};
+
 /**
  * Максимально строгий фильтр русского мата и оскорблений.
- * Модели даны инструкции искать корни и любые способы обхода (символы, точки).
  */
 export const validateContentSafety = async (data: RiderData): Promise<{ isSafe: boolean; reason?: string }> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  
   const textToCheck = `
     Имя: ${data.name}
     Локация: ${data.location}
@@ -16,25 +39,30 @@ export const validateContentSafety = async (data: RiderData): Promise<{ isSafe: 
     О себе: ${data.about || ''}
   `.trim();
 
+  // 1. Быстрая локальная проверка
+  if (localProfanityCheck(textToCheck)) {
+    return { isSafe: false, reason: "Local filter triggered" };
+  }
+
+  // 2. Глубокая проверка через AI
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
-      contents: `ПРОВЕРЬ ТЕКСТ НА МАТ И ВЕРНИ JSON: "${textToCheck}"`,
+      contents: `АНАЛИЗ ТЕКСТА НА НЕЦЕНЗУРНУЮ ЛЕКСИКУ: "${textToCheck}"`,
       config: {
-        systemInstruction: `Ты — самый строгий автоматический модератор. Твоя единственная цель: найти ЛЮБОЙ мат в русском языке.
-        ПРАВИЛА:
-        1. Ищи корни: -хуй-, -пизд-, -еб-, -бл-, -сук-, -муд-, -дрищ-, -залуп-, -манда- и все их производные.
-        2. Блокируй базовые матерные слова: хуй, пизда, ебать, блядь (и их вариации через 'т'), сука, гондон и т.д.
-        3. Ищи обход: замена букв цифрами (х4й), символами (х@й), точками (п.и.з.д.а) или пробелами (х у й).
-        4. Если в тексте есть хоть ОДИН корень или намек на мат — isSafe: false.
-        5. Ты должен игнорировать контекст "самовыражения". Любой мат = БАН.
-        Отвечай ТОЛЬКО в формате JSON: {"isSafe": boolean}.`,
+        systemInstruction: `Ты — эксперт-модератор. Твоя задача: найти ЛЮБОЙ мат, оскорбления или завуалированную ругань в русском языке. 
+        Учитывай: замену букв (х@й, пNзда), точки (б.л.я), пробелы (с у к а). 
+        Если в тексте есть хоть ОДИН намек на мат — возвращай isSafe: false.
+        Отвечай строго JSON: {"isSafe": boolean}`,
         responseMimeType: "application/json",
+        // Fix: Use 'as any' to bypass string-to-enum assignment errors for HarmCategory and HarmBlockThreshold
         safetySettings: [
-          { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-          { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-          { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }
+          { category: 'HARM_CATEGORY_HARASSMENT' as any, threshold: 'BLOCK_NONE' as any },
+          { category: 'HARM_CATEGORY_HATE_SPEECH' as any, threshold: 'BLOCK_NONE' as any },
+          { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT' as any, threshold: 'BLOCK_NONE' as any },
+          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT' as any, threshold: 'BLOCK_NONE' as any }
         ],
         responseSchema: {
           type: Type.OBJECT,
@@ -46,20 +74,19 @@ export const validateContentSafety = async (data: RiderData): Promise<{ isSafe: 
       }
     });
 
-    // Если ответ пустой, значит сработали внутренние фильтры безопасности Google 
-    // на очень жесткий мат — это автоматически означает, что контент не безопасен.
     if (!response.text) {
-      console.warn("Safety trigger: blocked by API safety filters.");
-      return { isSafe: false, reason: "API Security Block" };
+      // Если Google заблокировал контент на своем уровне — значит там точно мат
+      return { isSafe: false, reason: "API Content Block" };
     }
 
     const result = JSON.parse(response.text.trim());
     return result;
   } catch (error) {
     console.error("Safety check error:", error);
-    // В случае технической ошибки мы НЕ блокируем пользователя, 
-    // но в логах это будет видно.
-    return { isSafe: true };
+    // Если произошла ошибка API, мы проверяем текст еще раз на подозрительные символы
+    // чтобы не пропустить мат при "падении" сервиса
+    const suspicious = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(textToCheck);
+    return { isSafe: !suspicious, reason: "Fallback security" };
   }
 };
 
