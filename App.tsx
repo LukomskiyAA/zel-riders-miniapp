@@ -2,6 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { RiderData, AppSettings, PhotoFile, SocialEntry } from './types';
 import { sendToTelegram, getChatMemberStatus, deleteMessages } from './telegramService';
+import { validateContentSafety } from './geminiService';
 
 const CLUB_CONFIG: AppSettings & { chatInviteLink: string } = {
   botToken: '8394525518:AAF5RD0yvNLZQjiTS3wN61cC3K2HbNwJtxg', 
@@ -10,7 +11,6 @@ const CLUB_CONFIG: AppSettings & { chatInviteLink: string } = {
   chatInviteLink: 'https://t.me/+WbqO_61ky4wxMTli' 
 };
 
-// Ключ для хранения массива всех ID сообщений анкет пользователя
 const STORAGE_KEY = 'all_profile_history_ids';
 const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB
 
@@ -42,7 +42,6 @@ const App: React.FC = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Инициализация и загрузка истории
   useEffect(() => {
     if (tg) {
       tg.ready();
@@ -63,7 +62,6 @@ const App: React.FC = () => {
           )
         }));
 
-        // Загружаем всю историю ID сообщений
         tg.CloudStorage.getItem(STORAGE_KEY, (err: any, value: string) => {
           if (!err && value) {
             try {
@@ -77,7 +75,6 @@ const App: React.FC = () => {
           }
         });
 
-        // Проверка статуса (бан, участник или никто)
         getChatMemberStatus(CLUB_CONFIG, user.id).then(status => {
           setMembershipStatus(status);
           setIsLoadingMembership(false);
@@ -106,6 +103,15 @@ const App: React.FC = () => {
     tg?.MainButton?.showProgress();
 
     try {
+      // ПРОВЕРКА НА МАТ И ЦЕНЗУРУ
+      const safetyCheck = await validateContentSafety(formData);
+      if (!safetyCheck.isSafe) {
+        tg?.showAlert("Обнаружена ненормативная лексика или неподобающий контент. Пожалуйста, отредактируй анкету.");
+        setIsSubmitting(false);
+        tg?.MainButton?.hideProgress();
+        return;
+      }
+
       // 1. Удаляем старые анкеты
       if (historyMessageIds.length > 0) {
         await deleteMessages(CLUB_CONFIG, historyMessageIds);
@@ -191,27 +197,19 @@ const App: React.FC = () => {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []) as File[];
-    
-    // Проверка на количество
     if (photos.length + files.length > 3) {
       tg?.showAlert("Максимум 3 фото");
       return;
     }
-
-    // Проверка на размер каждого файла
     for (const file of files) {
       if (file.size > MAX_FILE_SIZE) {
         tg?.showAlert(`Фото "${file.name}" слишком тяжелое. Максимум 4 МБ.`);
-        // Сбрасываем input, чтобы можно было выбрать заново
         if (fileInputRef.current) fileInputRef.current.value = "";
         return;
       }
     }
-
     const newPhotos = files.map(file => ({ file, preview: URL.createObjectURL(file) }));
     setPhotos(prev => [...prev, ...newPhotos]);
-    
-    // Сбрасываем input, чтобы событие change срабатывало даже при выборе того же файла
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -233,7 +231,6 @@ const App: React.FC = () => {
     );
   }
 
-  // Экран Блокировки (Черный список)
   if (isBanned) {
     return (
       <div className="min-h-screen p-6 flex flex-col items-center justify-center text-center bg-[#0a0a0a]">
