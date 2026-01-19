@@ -5,9 +5,9 @@ import { sendToTelegram, checkChatMembership, deleteMessages } from './telegramS
 
 const CLUB_CONFIG: AppSettings & { chatInviteLink: string } = {
   botToken: '8394525518:AAF5RD0yvNLZQjiTS3wN61cC3K2HbNwJtxg', 
-  chatId: '-1003610896779',      
-  threadId: '2', 
-  chatInviteLink: 'https://t.me/+52X67-4oxYJmM2E6' 
+  chatId: '-1002425433567',      
+  threadId: '5', 
+  chatInviteLink: 'https://t.me/+WbqO_61ky4wxMTli' 
 };
 
 // Ключ для хранения массива всех ID сообщений анкет пользователя
