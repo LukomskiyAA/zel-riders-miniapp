@@ -44,9 +44,10 @@ export const deleteMessages = async (settings: AppSettings, messageIds: number[]
 };
 
 /**
- * Проверяет статус участника в чате
+ * Возвращает статус участника в чате:
+ * 'creator', 'administrator', 'member', 'restricted', 'left', 'kicked'
  */
-export const checkChatMembership = async (settings: AppSettings, userId: number): Promise<boolean> => {
+export const getChatMemberStatus = async (settings: AppSettings, userId: number): Promise<string> => {
   const { botToken, chatId } = settings;
   const url = `https://api.telegram.org/bot${botToken}/getChatMember?chat_id=${chatId}&user_id=${userId}`;
 
@@ -54,13 +55,12 @@ export const checkChatMembership = async (settings: AppSettings, userId: number)
     const response = await fetch(url);
     const result = await response.json();
     if (result.ok) {
-      const status = result.result.status;
-      return ['member', 'administrator', 'creator'].includes(status);
+      return result.result.status;
     }
-    return false;
+    return 'left';
   } catch (error) {
     console.error('Error checking membership:', error);
-    return false;
+    return 'left';
   }
 };
 

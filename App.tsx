@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { RiderData, AppSettings, PhotoFile, SocialEntry } from './types';
-import { sendToTelegram, checkChatMembership, deleteMessages } from './telegramService';
+import { sendToTelegram, getChatMemberStatus, deleteMessages } from './telegramService';
 
 const CLUB_CONFIG: AppSettings & { chatInviteLink: string } = {
   botToken: '8394525518:AAF5RD0yvNLZQjiTS3wN61cC3K2HbNwJtxg', 
@@ -34,7 +34,7 @@ const App: React.FC = () => {
 
   const [photos, setPhotos] = useState<PhotoFile[]>([]);
   const [isLoadingMembership, setIsLoadingMembership] = useState(true);
-  const [isAlreadyMember, setIsAlreadyMember] = useState(false);
+  const [membershipStatus, setMembershipStatus] = useState<string>('left');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [historyMessageIds, setHistoryMessageIds] = useState<number[]>([]);
@@ -62,7 +62,7 @@ const App: React.FC = () => {
           )
         }));
 
-        // Загружаем всю историю ID сообщений (это может быть массив от всех прошлых отправок)
+        // Загружаем всю историю ID сообщений
         tg.CloudStorage.getItem(STORAGE_KEY, (err: any, value: string) => {
           if (!err && value) {
             try {
@@ -76,9 +76,9 @@ const App: React.FC = () => {
           }
         });
 
-        // Проверка членства
-        checkChatMembership(CLUB_CONFIG, user.id).then(isMember => {
-          setIsAlreadyMember(isMember);
+        // Проверка статуса (бан, участник или никто)
+        getChatMemberStatus(CLUB_CONFIG, user.id).then(status => {
+          setMembershipStatus(status);
           setIsLoadingMembership(false);
         }).catch(() => setIsLoadingMembership(false));
       } else {
@@ -105,20 +105,16 @@ const App: React.FC = () => {
     tg?.MainButton?.showProgress();
 
     try {
-      // 1. Пытаемся удалить ВСЕ сообщения из истории
+      // 1. Удаляем старые анкеты
       if (historyMessageIds.length > 0) {
-        // Мы передаем весь накопившийся список ID
         await deleteMessages(CLUB_CONFIG, historyMessageIds);
       }
 
-      // 2. Отправляем новую анкету
+      // 2. Отправляем новую
       const result = await sendToTelegram(CLUB_CONFIG, formData, photos.map(p => p.file));
 
       if (result.ok) {
-        // 3. Сохраняем в облако ТОЛЬКО новые ID. 
-        // Старые ID удалены (или попытка была совершена), больше они нам не нужны.
         tg.CloudStorage.setItem(STORAGE_KEY, JSON.stringify(result.messageIds));
-        
         setIsSuccess(true);
         tg?.HapticFeedback?.notificationOccurred('success');
         tg?.MainButton?.hide();
@@ -134,9 +130,11 @@ const App: React.FC = () => {
     }
   }, [formData, photos, isSubmitting, isSuccess, tg, historyMessageIds]);
 
-  // Эффект для управления Главной Кнопкой (MainButton)
+  const isAlreadyMember = ['member', 'administrator', 'creator', 'restricted'].includes(membershipStatus);
+  const isBanned = membershipStatus === 'kicked';
+
   useEffect(() => {
-    if (tg && !isSuccess && !isAlreadyMember && !isLoadingMembership) {
+    if (tg && !isSuccess && !isAlreadyMember && !isBanned && !isLoadingMembership) {
       tg.MainButton.setText('ОТПРАВИТЬ АНКЕТУ');
       tg.MainButton.setParams({
         is_visible: true,
@@ -149,7 +147,7 @@ const App: React.FC = () => {
     } else {
       tg?.MainButton?.hide();
     }
-  }, [tg, performSubmit, formData.name, isSubmitting, isSuccess, isAlreadyMember, isLoadingMembership]);
+  }, [tg, performSubmit, formData.name, isSubmitting, isSuccess, isAlreadyMember, isBanned, isLoadingMembership]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -218,6 +216,23 @@ const App: React.FC = () => {
     );
   }
 
+  // Экран Блокировки (Черный список)
+  if (isBanned) {
+    return (
+      <div className="min-h-screen p-6 flex flex-col items-center justify-center text-center bg-[#0a0a0a]">
+        <div className="w-full max-w-xs p-8 bg-[#181818] rounded-[2.5rem] border-2 border-red-600 shadow-[0_0_50px_rgba(239,68,68,0.3)] animate-pulse">
+          <div className="text-red-600 text-5xl mb-6">
+            <i className="fas fa-user-slash"></i>
+          </div>
+          <h2 className="text-2xl font-black text-white uppercase italic leading-tight mb-2">ДОСТУП ЗАКРЫТ</h2>
+          <p className="text-[10px] text-neutral-500 uppercase tracking-[0.2em] mb-4">Твой аккаунт находится в черном списке сообщества</p>
+          <div className="h-[1px] bg-neutral-800 w-full mb-4"></div>
+          <p className="text-[9px] text-neutral-600 uppercase font-black">Свяжись с администрацией для выяснения причин</p>
+        </div>
+      </div>
+    );
+  }
+
   if (isSuccess || isAlreadyMember) {
     const title = isAlreadyMember ? "С возвращением!" : "Готово";
     const subTitle = isAlreadyMember ? "Ты уже в банде Zel Riders" : "Анкета отправлена";
@@ -234,11 +249,6 @@ const App: React.FC = () => {
             </a>
           </div>
         </div>
-        {isAlreadyMember && (
-          <p className="mt-8 text-neutral-700 text-[9px] font-black uppercase tracking-widest italic">
-            Рады тебя видеть снова!
-          </p>
-        )}
       </div>
     );
   }
