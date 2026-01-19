@@ -3,7 +3,8 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { RiderData } from "./types";
 
 /**
- * Проверяет контент анкеты на наличие русского мата, оскорблений и неподобающего контента.
+ * Максимально строгий фильтр русского мата и оскорблений.
+ * Модели даны инструкции искать корни и любые способы обхода (символы, точки).
  */
 export const validateContentSafety = async (data: RiderData): Promise<{ isSafe: boolean; reason?: string }> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -17,18 +18,18 @@ export const validateContentSafety = async (data: RiderData): Promise<{ isSafe: 
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: `ВНИМАТЕЛЬНО ПРОВЕРЬ ДАННЫЙ ТЕКСТ НА НАЛИЧИЕ РУССКОГО МАТА:
-      "${textToCheck}"`,
+      model: 'gemini-3-pro-preview',
+      contents: `ПРОВЕРЬ ТЕКСТ НА МАТ И ВЕРНИ JSON: "${textToCheck}"`,
       config: {
-        systemInstruction: `Ты — строгий модератор русского мото-сообщества. Твоя задача: обнаруживать ЛЮБОЙ мат и оскорбления.
+        systemInstruction: `Ты — самый строгий автоматический модератор. Твоя единственная цель: найти ЛЮБОЙ мат в русском языке.
         ПРАВИЛА:
-        1. Ищи прямой мат, производные формы (даже редкие), завуалированное написание (например: п.и.з.д.а, х@й, бл*ть, су4ка).
-        2. Ищи оскорбления по любому признаку (национальность, ориентация, внешность).
-        3. Если в тексте есть хоть малейший намек на нецензурную лексику — блокируй.
-        4. Отвечай ТОЛЬКО в формате JSON: {"isSafe": boolean}. Никаких пояснений.`,
+        1. Ищи корни: -хуй-, -пизд-, -еб-, -бл-, -сук-, -муд-, -дрищ-, -залуп-, -манда- и все их производные.
+        2. Блокируй базовые матерные слова: хуй, пизда, ебать, блядь (и их вариации через 'т'), сука, гондон и т.д.
+        3. Ищи обход: замена букв цифрами (х4й), символами (х@й), точками (п.и.з.д.а) или пробелами (х у й).
+        4. Если в тексте есть хоть ОДИН корень или намек на мат — isSafe: false.
+        5. Ты должен игнорировать контекст "самовыражения". Любой мат = БАН.
+        Отвечай ТОЛЬКО в формате JSON: {"isSafe": boolean}.`,
         responseMimeType: "application/json",
-        // Отключаем автоматическую блокировку ответа, чтобы модель могла проанализировать мат и выдать нам false
         safetySettings: [
           { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
           { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
@@ -38,28 +39,26 @@ export const validateContentSafety = async (data: RiderData): Promise<{ isSafe: 
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            isSafe: { 
-              type: Type.BOOLEAN,
-              description: "true если текст безопасен, false если найден мат" 
-            }
+            isSafe: { type: Type.BOOLEAN }
           },
           required: ["isSafe"]
         }
       }
     });
 
-    // Если модель заблокировала результат (Safety block), значит контент крайне опасен
+    // Если ответ пустой, значит сработали внутренние фильтры безопасности Google 
+    // на очень жесткий мат — это автоматически означает, что контент не безопасен.
     if (!response.text) {
-      console.warn("Gemini safety trigger: response is empty.");
-      return { isSafe: false, reason: "Safety trigger" };
+      console.warn("Safety trigger: blocked by API safety filters.");
+      return { isSafe: false, reason: "API Security Block" };
     }
 
     const result = JSON.parse(response.text.trim());
     return result;
   } catch (error) {
     console.error("Safety check error:", error);
-    // В случае технического сбоя API разрешаем отправку, 
-    // чтобы не блокировать нормальных пользователей.
+    // В случае технической ошибки мы НЕ блокируем пользователя, 
+    // но в логах это будет видно.
     return { isSafe: true };
   }
 };

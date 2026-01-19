@@ -64,9 +64,11 @@ export const getChatMemberStatus = async (settings: AppSettings, userId: number)
   }
 };
 
+// Fix: Added missing aiBio parameter to match the function call on line 127 in App.tsx
 export const sendToTelegram = async (
   settings: AppSettings,
   data: RiderData,
+  aiBio: string,
   photos: File[]
 ): Promise<{ ok: boolean, messageIds: number[], description?: string }> => {
   const { botToken, chatId, threadId } = settings;
@@ -93,6 +95,7 @@ export const sendToTelegram = async (
     ? `\n\n📝 <b>О себе:</b>\n<i>${escapeHTML(data.about)}</i>` 
     : '';
 
+  // Included aiBio in the caption to provide users with the AI-generated rider description
   const caption = `
 👤 <b>Имя:</b> ${userMention}
 🎂 <b>Возраст:</b> ${escapeHTML(data.age)}
@@ -103,7 +106,10 @@ export const sendToTelegram = async (
 ${gearsList}
 
 🔗 <b>Контакты:</b>
-${socialInfo}${aboutSection}
+${socialInfo}
+
+📝 <b>О себе (AI):</b>
+<i>${escapeHTML(aiBio)}</i>${aboutSection}
   `.trim();
 
   try {

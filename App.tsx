@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { RiderData, AppSettings, PhotoFile, SocialEntry } from './types';
 import { sendToTelegram, getChatMemberStatus, deleteMessages } from './telegramService';
-import { validateContentSafety } from './geminiService';
+import { validateContentSafety, generateRiderBio } from './geminiService';
 
 const CLUB_CONFIG: AppSettings & { chatInviteLink: string } = {
   botToken: '8394525518:AAF5RD0yvNLZQjiTS3wN61cC3K2HbNwJtxg', 
@@ -104,9 +104,10 @@ const App: React.FC = () => {
     tg?.MainButton?.showProgress();
 
     try {
+      // 1. ПРОВЕРКА НА МАТ
       const safetyCheck = await validateContentSafety(formData);
       if (!safetyCheck.isSafe) {
-        tg?.showAlert("⛔️ Анкета отклонена! Использование матерных слов или оскорблений строго запрещено.");
+        tg?.showAlert("⛔️ Анкета отклонена! Матерные слова и оскорбления запрещены.");
         setIsSubmitting(false);
         tg?.MainButton?.setParams({ text: 'ОТПРАВИТЬ АНКЕТУ' });
         tg?.MainButton?.hideProgress();
@@ -114,13 +115,16 @@ const App: React.FC = () => {
         return;
       }
 
+      tg?.MainButton?.setParams({ text: 'ГЕНЕРАЦИЯ BIO...' });
+      const aiBio = await generateRiderBio(formData);
+
       tg?.MainButton?.setParams({ text: 'ОТПРАВЛЯЕМ...' });
 
       if (historyMessageIds.length > 0) {
         await deleteMessages(CLUB_CONFIG, historyMessageIds);
       }
 
-      const result = await sendToTelegram(CLUB_CONFIG, formData, photos.map(p => p.file));
+      const result = await sendToTelegram(CLUB_CONFIG, formData, aiBio, photos.map(p => p.file));
 
       if (result.ok) {
         tg.CloudStorage.setItem(STORAGE_KEY, JSON.stringify(result.messageIds));
@@ -207,7 +211,6 @@ const App: React.FC = () => {
     for (const file of files) {
       if (file.size > MAX_FILE_SIZE) {
         tg?.showAlert(`Фото "${file.name}" слишком тяжелое. Максимум 4 МБ.`);
-        if (fileInputRef.current) fileInputRef.current.value = "";
         return;
       }
     }
@@ -271,7 +274,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen p-4 flex flex-col items-center justify-start relative bg-[#0a0a0a] pb-24 animate-in fade-in duration-700">
+    <div className="min-h-screen p-4 flex flex-col items-center justify-start relative bg-[#0a0a0a] pb-24">
       <header className="w-full max-w-lg mb-8 flex flex-col items-center pt-8 z-20">
         <h1 className="text-4xl font-black uppercase italic tracking-tighter">
           <span className="text-red-600">Z</span><span className="text-white">EL</span>
@@ -378,8 +381,8 @@ const App: React.FC = () => {
               ))}
             </div>
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" multiple onChange={handleFileChange} />
-            <p className="text-[8px] text-neutral-600 uppercase font-bold text-center tracking-[0.1em]">
-               {photos.length === 0 ? "Нажмите на любой слот, чтобы выбрать фото" : `Загружено ${photos.length} из 3`}
+            <p className="text-[8px] text-neutral-600 uppercase font-bold text-center tracking-[0.1em] mt-2">
+               Загружено {photos.length} из 3
             </p>
           </div>
         </div>
